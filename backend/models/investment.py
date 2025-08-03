@@ -30,7 +30,7 @@ class Investment(Base):
     # Relationships
     user = relationship("User", back_populates="investments")
     tax_sale = relationship("TaxSale", back_populates="investments")
-    property = relationship("Property", back_populates="investments")
+    property_ref = relationship("Property", back_populates="investments")
     redemption = relationship("Redemption", back_populates="investment", uselist=False)
     documents = relationship("Document", back_populates="investment")
     alerts = relationship("Alert", back_populates="investment")

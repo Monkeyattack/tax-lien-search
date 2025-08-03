@@ -3,7 +3,16 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(git init:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(ssh:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(scp:*)",
+      "Bash(grep:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }

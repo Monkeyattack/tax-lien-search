@@ -15,7 +15,7 @@ class PropertyValuation(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships
-    property = relationship("Property", back_populates="valuations")
+    property_ref = relationship("Property", back_populates="valuations")
     
     @property
     def value_per_sqft(self):

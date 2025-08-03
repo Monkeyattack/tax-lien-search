@@ -17,7 +17,7 @@ class ResearchNote(Base):
     
     # Relationships
     user = relationship("User", back_populates="research_notes")
-    property = relationship("Property", back_populates="research_notes")
+    property_ref = relationship("Property", back_populates="research_notes")
     
     def __repr__(self):
         return f"<ResearchNote(property_id={self.property_id}, type='{self.note_type}', important={self.is_important})>"

@@ -25,7 +25,7 @@ class TaxSale(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Relationships
-    property = relationship("Property", back_populates="tax_sales")
+    property_ref = relationship("Property", back_populates="tax_sales")
     county = relationship("County", back_populates="tax_sales")
     investments = relationship("Investment", back_populates="tax_sale")
     

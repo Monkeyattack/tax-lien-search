@@ -6,7 +6,7 @@ from decouple import config
 import os
 
 from database import engine, SessionLocal, Base
-from routers import auth, properties, investments, alerts, counties
+from routers import auth, properties, investments, alerts, counties, data_import
 from models import User
 
 # Create database tables
@@ -45,6 +45,7 @@ app.include_router(properties.router, prefix="/api/properties", tags=["propertie
 app.include_router(investments.router, prefix="/api/investments", tags=["investments"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(counties.router, prefix="/api/counties", tags=["counties"])
+app.include_router(data_import.router, prefix="/api", tags=["data-import"])
 
 @app.get("/")
 async def root():

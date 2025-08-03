@@ -1,0 +1,11 @@
+parcel_number,owner_name,property_address,city,zip,property_type,legal_description,tax_rate,homestead_exemption,agricultural_exemption,senior_exemption,land_size_acres,building_sqft,year_built,last_sale_date,last_sale_amount
+123-456-789,John Doe,123 Main St,Dallas,75201,residential,Lot 1 Block 2 Oak Hills Addition,0.02,TRUE,FALSE,FALSE,0.25,2500,1995,2020-01-15,250000
+234-567-890,Jane Smith,456 Elm Ave,Plano,75023,residential,Lot 15 Block 8 Willow Creek,0.019,TRUE,FALSE,TRUE,0.33,3200,2005,2019-05-20,380000
+345-678-901,ABC Corp,789 Commerce St,Dallas,75202,commercial,Block 5 Downtown Business District,0.025,FALSE,FALSE,FALSE,0.5,15000,1985,2018-03-10,1500000
+456-789-012,Mary Johnson,321 Oak Dr,Richardson,75080,residential,Lot 22 Block 4 Spring Valley,0.021,TRUE,FALSE,FALSE,0.28,2800,2000,2021-07-15,325000
+567-890-123,Robert Brown,654 Pine Rd,Allen,75013,residential,Lot 7 Block 12 Twin Creeks,0.018,FALSE,FALSE,FALSE,0.4,3500,2010,2022-02-28,425000
+678-901-234,Green Acres LLC,1000 Farm Rd,McKinney,75071,agricultural,Section 12 Survey A-123,0.015,FALSE,TRUE,FALSE,50.5,2000,1960,2015-11-01,850000
+789-012-345,David Lee,222 Maple Ln,Frisco,75034,residential,Lot 18 Block 3 Preston Ridge,0.02,TRUE,FALSE,FALSE,0.35,3800,2015,2023-01-10,520000
+890-123-456,Tech Industries,500 Innovation Blvd,Plano,75074,commercial,Lot 1 Legacy Business Park,0.024,FALSE,FALSE,FALSE,2.5,50000,2020,2021-09-05,8500000
+901-234-567,Senior Living Corp,888 Sunset Dr,Richardson,75081,residential,Block 9 Retirement Community,0.017,FALSE,FALSE,TRUE,1.2,25000,2018,2020-06-15,3200000
+012-345-678,Historic Homes LLC,100 Heritage St,McKinney,75069,residential,Original Town Lot 45,0.019,FALSE,FALSE,FALSE,0.75,4500,1925,2019-12-01,650000

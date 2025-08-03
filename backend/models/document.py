@@ -21,7 +21,7 @@ class Document(Base):
     # Relationships
     user = relationship("User", back_populates="documents")
     investment = relationship("Investment", back_populates="documents")
-    property = relationship("Property", back_populates="documents")
+    property_ref = relationship("Property", back_populates="documents")
     
     @property
     def file_size_mb(self):

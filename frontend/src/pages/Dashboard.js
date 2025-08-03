@@ -6,7 +6,7 @@ import {
   CurrencyDollarIcon,
   BuildingOfficeIcon,
   BellIcon,
-  TrendingUpIcon,
+  ArrowTrendingUpIcon,
   ExclamationTriangleIcon,
   ClockIcon,
 } from '@heroicons/react/24/outline';
@@ -51,13 +51,13 @@ const Dashboard = () => {
     {
       name: 'Total Profit',
       value: summary ? `$${summary.total_profit.toLocaleString()}` : '$0',
-      icon: TrendingUpIcon,
+      icon: ArrowTrendingUpIcon,
       color: 'bg-purple-500',
     },
     {
       name: 'Avg ROI',
       value: summary ? `${summary.overall_roi_percent.toFixed(1)}%` : '0%',
-      icon: TrendingUpIcon,
+      icon: ArrowTrendingUpIcon,
       color: 'bg-yellow-500',
     },
   ];
