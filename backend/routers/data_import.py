@@ -6,7 +6,14 @@ import json
 from datetime import datetime
 from io import BytesIO
 
-from database import get_db
+from database import SessionLocal
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 from models import Property, TaxSale, County, PropertyValuation, Alert
 from services.auth_service import get_current_user
 from services.scraper_service import ScraperService

@@ -19,6 +19,7 @@ import InvestmentDetail from './pages/InvestmentDetail';
 import Counties from './pages/Counties';
 import Alerts from './pages/Alerts';
 import Profile from './pages/Profile';
+import DataImport from './pages/DataImport';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,7 @@ function App() {
                 <Route path="counties" element={<Counties />} />
                 <Route path="alerts" element={<Alerts />} />
                 <Route path="profile" element={<Profile />} />
+                <Route path="data-import" element={<DataImport />} />
               </Route>
             </Routes>
             

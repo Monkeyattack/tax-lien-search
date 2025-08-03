@@ -10,6 +10,7 @@ import {
   UserIcon,
   Bars3Icon,
   XMarkIcon,
+  CloudArrowUpIcon,
 } from '@heroicons/react/24/outline';
 
 const navigation = [
@@ -18,6 +19,7 @@ const navigation = [
   { name: 'Investments', href: '/investments', icon: CurrencyDollarIcon },
   { name: 'Counties', href: '/counties', icon: MapIcon },
   { name: 'Alerts', href: '/alerts', icon: BellIcon },
+  { name: 'Data Import', href: '/data-import', icon: CloudArrowUpIcon },
   { name: 'Profile', href: '/profile', icon: UserIcon },
 ];
 
