@@ -26,10 +26,11 @@ A comprehensive tax lien/deed search and tracking application for Texas tax sale
 
 ## Development Commands
 - Setup: `python setup.py`
-- Backend: `cd backend && uvicorn main:app --reload`
-- Frontend: `cd frontend && npm start`
+- Backend: `cd backend && uvicorn main:app --reload --port 8000`
+- Frontend: `cd frontend && npm start` (port 3001 - conflicts with calendar-app)
 - Database: `alembic upgrade head`
 - Tests: `pytest`
+- Deploy: `pm2 restart tax-lien-api` (on VPS)
 
 ## Key Files
 - `backend/main.py`: FastAPI application entry point
@@ -46,7 +47,11 @@ A comprehensive tax lien/deed search and tracking application for Texas tax sale
 ## Deployment
 - **Development**: Local SQLite database
 - **Production**: Deploy to VPSServer1 (172.93.51.42)
-- **Domain**: webdev.monkeyattack.com or subdomain
+- **Domain**: tax.profithits.app
+- **Backend Port**: 8000 (FastAPI)
+- **Frontend Port**: 3001 (React - conflicts with calendar-app, needs update)
+- **VPS Status**: Backend deployed as PM2 process 'tax-lien-api'
+- **NGINX**: Configured at /etc/nginx/sites-available/tax-profithits
 
 ## Security Notes
 - Never commit API keys or sensitive data

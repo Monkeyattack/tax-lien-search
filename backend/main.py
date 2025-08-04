@@ -3,11 +3,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from decouple import config
+from starlette.middleware.sessions import SessionMiddleware
 import os
 
 from database import engine, SessionLocal, Base
 from routers import auth, properties, investments, alerts, counties, data_import
 from models import User
+from services.google_auth import oauth
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -18,8 +20,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Session middleware for OAuth
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=config('SECRET_KEY', default='your-secret-key-change-this')
+)
+
 # CORS middleware
-origins = config('CORS_ORIGINS', default='').split(',')
+origins = config('CORS_ORIGINS', default='http://localhost:3000,https://tax.profithits.app').split(',')
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -27,6 +35,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Configure OAuth
+oauth.init_app(app)
 
 # Security
 security = HTTPBearer()

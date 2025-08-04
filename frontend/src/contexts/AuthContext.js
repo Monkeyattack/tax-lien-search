@@ -91,6 +91,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithToken = async (accessToken) => {
+    try {
+      localStorage.setItem('token', accessToken);
+      setToken(accessToken);
+      
+      // Get user data
+      const userData = await authService.getCurrentUser();
+      setUser(userData);
+      
+      return { success: true };
+    } catch (error) {
+      localStorage.removeItem('token');
+      setToken(null);
+      return {
+        success: false,
+        error: error.response?.data?.detail || 'Token authentication failed'
+      };
+    }
+  };
+
   const value = {
     user,
     token,
@@ -99,6 +119,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     updateProfile,
+    loginWithToken,
     isAuthenticated: !!token && !!user,
   };
 

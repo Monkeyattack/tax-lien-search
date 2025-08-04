@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from decouple import config
+from authlib.integrations.starlette_client import OAuthError
 
 from database import get_database
 from models.user import User
+from services.google_auth import oauth, GoogleAuthService
 
 router = APIRouter()
 security = HTTPBearer()
@@ -43,6 +46,9 @@ class UserResponse(BaseModel):
     last_name: str = None
     phone: str = None
     is_active: bool
+    is_admin: bool
+    auth_provider: str
+    profile_picture: str = None
     created_at: datetime
 
     class Config:
@@ -172,3 +178,51 @@ def update_user_profile(
     db.refresh(current_user)
     
     return current_user
+
+# Google OAuth endpoints
+@router.get("/google/login")
+async def google_login(request: Request):
+    """Initiate Google OAuth login"""
+    redirect_uri = request.url_for('google_callback')
+    # In production, use the actual domain
+    if config('APP_ENV', default='development') == 'production':
+        redirect_uri = f"https://tax.profithits.app/api/auth/google/callback"
+    
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+@router.get("/google/callback")
+async def google_callback(request: Request, db: Session = Depends(get_database)):
+    """Handle Google OAuth callback"""
+    try:
+        token = await oauth.google.authorize_access_token(request)
+        user_info = token.get('userinfo')
+        
+        if not user_info:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to get user info from Google"
+            )
+        
+        # Get or create user
+        user = await GoogleAuthService.get_or_create_user(user_info, db)
+        
+        # Create JWT token
+        access_token = create_access_token(
+            data={"sub": user.username, "email": user.email}
+        )
+        
+        # Redirect to frontend with token
+        frontend_url = config('FRONTEND_URL', default='http://localhost:3000')
+        if config('APP_ENV', default='development') == 'production':
+            frontend_url = 'https://tax.profithits.app'
+            
+        return RedirectResponse(
+            url=f"{frontend_url}/auth/callback?token={access_token}",
+            status_code=status.HTTP_302_FOUND
+        )
+        
+    except OAuthError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"OAuth error: {str(e)}"
+        )

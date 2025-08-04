@@ -15,7 +15,7 @@ def get_db():
     finally:
         db.close()
 from models import Property, TaxSale, County, PropertyValuation, Alert
-from services.auth_service import get_current_user
+from routers.auth import get_current_user
 from services.scraper_service import ScraperService
 from models.user import User
 
