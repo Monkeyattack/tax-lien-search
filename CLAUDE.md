@@ -28,15 +28,16 @@ A comprehensive tax lien/deed search and tracking application for Texas tax sale
 
 ### CRITICAL: ALL CODE EXECUTION MUST BE ON VPS
 **NEVER run Python, Node, or database commands locally on Windows.**
-**ALWAYS SSH to VPS first: `ssh root@172.93.51.42`**
+**ALWAYS SSH to VPS using the KEY: `ssh -i ~/.ssh/tao_alpha_dca_key root@172.93.51.42`**
 
 ### On VPS (172.93.51.42):
-- Setup: `ssh root@172.93.51.42 && cd /root/tax-lien-search && python setup.py`
-- Backend: `ssh root@172.93.51.42 && cd /root/tax-lien-search/backend && uvicorn main:app --reload --port 8000`
-- Frontend: `ssh root@172.93.51.42 && cd /root/tax-lien-search/frontend && npm start`
-- Database: `ssh root@172.93.51.42 && cd /root/tax-lien-search/backend && alembic upgrade head`
-- Tests: `ssh root@172.93.51.42 && cd /root/tax-lien-search && pytest`
-- Deploy: `ssh root@172.93.51.42 && pm2 restart tax-lien-api`
+- SSH: `ssh -i ~/.ssh/tao_alpha_dca_key root@172.93.51.42`
+- Setup: `ssh -i ~/.ssh/tao_alpha_dca_key root@172.93.51.42 "cd /root/tax-lien-search && python setup.py"`
+- Backend: `ssh -i ~/.ssh/tao_alpha_dca_key root@172.93.51.42 "cd /root/tax-lien-search/backend && uvicorn main:app --reload --port 8000"`
+- Frontend: `ssh -i ~/.ssh/tao_alpha_dca_key root@172.93.51.42 "cd /root/tax-lien-search/frontend && npm start"`
+- Database: `ssh -i ~/.ssh/tao_alpha_dca_key root@172.93.51.42 "cd /root/tax-lien-search/backend && alembic upgrade head"`
+- Tests: `ssh -i ~/.ssh/tao_alpha_dca_key root@172.93.51.42 "cd /root/tax-lien-search && pytest"`
+- Deploy: `ssh -i ~/.ssh/tao_alpha_dca_key root@172.93.51.42 "cd /root/tax-lien-search && git pull && cd backend && pm2 restart tax-lien-api"`
 
 ### Local Development (Windows):
 - **ONLY** for editing code files
@@ -56,13 +57,14 @@ A comprehensive tax lien/deed search and tracking application for Texas tax sale
 - **Property APIs**: Integration with county assessor data when available
 
 ## Deployment
-- **Development**: Local SQLite database
-- **Production**: Deploy to VPSServer1 (172.93.51.42)
+- **Production Path**: /var/www/tax-lien-search
+- **VPS**: VPSServer1 (172.93.51.42)
 - **Domain**: tax.profithits.app
 - **Backend Port**: 8000 (FastAPI)
-- **Frontend Port**: 3001 (React - conflicts with calendar-app, needs update)
-- **VPS Status**: Backend deployed as PM2 process 'tax-lien-api'
-- **NGINX**: Configured at /etc/nginx/sites-available/tax-profithits
+- **Frontend**: Static build served by NGINX
+- **Database**: SQLite at /var/www/tax-lien-search/backend/tax_lien_search.db
+- **PM2 Process**: tax-lien-api
+- **NGINX Config**: /etc/nginx/sites-available/tax-profithits
 
 ## Security Notes
 - Never commit API keys or sensitive data
