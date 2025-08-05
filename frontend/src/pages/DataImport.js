@@ -340,7 +340,7 @@ const DataImport = () => {
             Automatically scrape tax sale data from county websites
           </p>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div>
               <button
                 onClick={() => scrapeMutation.mutate('collin')}
@@ -418,6 +418,49 @@ const DataImport = () => {
                 </div>
               )}
             </div>
+            
+            <div>
+              <button
+                onClick={() => scrapeMutation.mutate('dallas-lgbs')}
+                disabled={scrapeMutation.isLoading || scrapingStatus['dallas-lgbs']?.status === 'running'}
+                className="btn-primary w-full"
+              >
+                <ArrowPathIcon className={`h-4 w-4 mr-2 ${scrapingStatus['dallas-lgbs']?.status === 'running' ? 'animate-spin' : ''}`} />
+                Dallas LGBS Listings
+              </button>
+              {scrapingStatus['dallas-lgbs'] && (
+                <div className={`mt-2 p-3 rounded-md text-sm ${
+                  scrapingStatus['dallas-lgbs'].status === 'error' ? 'bg-red-50 text-red-800' :
+                  scrapingStatus['dallas-lgbs'].status === 'completed' ? 'bg-green-50 text-green-800' :
+                  'bg-blue-50 text-blue-800'
+                }`}>
+                  <p className="font-medium">{scrapingStatus['dallas-lgbs'].message}</p>
+                  {scrapingStatus['dallas-lgbs'].progress !== undefined && (
+                    <div className="mt-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>Progress</span>
+                        <span>{scrapingStatus['dallas-lgbs'].progress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-tax-primary h-2 rounded-full transition-all"
+                          style={{ width: `${scrapingStatus['dallas-lgbs'].progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {(scrapingStatus['dallas-lgbs'].propertiesFound !== undefined || scrapingStatus['dallas-lgbs'].salesFound !== undefined) && (
+                    <p className="mt-2 text-xs">
+                      Found: {scrapingStatus['dallas-lgbs'].propertiesFound || 0} properties, {scrapingStatus['dallas-lgbs'].salesFound || 0} sales
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div className="mt-4 text-xs text-gray-500">
+            <p><strong>Dallas LGBS Listings:</strong> Scrapes active tax sale listings from the LGBS system with property enrichment from Zillow and Google Maps.</p>
           </div>
         </div>
       </div>

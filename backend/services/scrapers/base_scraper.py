@@ -81,3 +81,7 @@ class BaseTaxSaleScraper(ABC):
     def delay(self, seconds: float = 1.0):
         """Add delay between requests to be respectful"""
         time.sleep(seconds)
+    
+    def set_progress_callback(self, callback):
+        """Set callback for progress updates"""
+        self.progress_callback = callback

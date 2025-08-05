@@ -6,8 +6,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from services.scrapers.collin_county_scraper import CollinCountyScraper
 from services.scrapers.dallas_county_scraper import DallasCountyScraper
+from services.scrapers.lgbs_dallas_scraper import LGBSDallasScraper
+from services.property_enrichment_service import PropertyEnrichmentService
 from models import County, Property, TaxSale, Alert
 from models.user import User
+from models.property_enrichment import PropertyEnrichment
+from models.scraping_job import ScrapingJob
+import uuid
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +24,9 @@ class ScraperService:
         self.scrapers = {
             'collin': CollinCountyScraper(),
             'dallas': DallasCountyScraper(),
+            'dallas-lgbs': LGBSDallasScraper(),
         }
+        self.enrichment_service = PropertyEnrichmentService()
         
     def scrape_all_counties(self, user: Optional[User] = None) -> Dict[str, Any]:
         """Scrape tax sales from all configured counties"""
@@ -245,3 +252,153 @@ class ScraperService:
             'properties_imported': result['properties_count'],
             'errors': result['errors']
         }
+    
+    def scrape_county_with_tracking(self, county_code: str, user: Optional[User] = None) -> str:
+        """Scrape a county with job tracking"""
+        # Create scraping job
+        job_id = str(uuid.uuid4())
+        job = ScrapingJob(
+            job_id=job_id,
+            county=county_code,
+            status='pending',
+            created_by=user.email if user else 'system',
+            progress=0
+        )
+        self.db.add(job)
+        self.db.commit()
+        
+        # Set up progress callback
+        def update_progress(progress: int, message: str, properties_found: int = 0, sales_found: int = 0):
+            job.progress = progress
+            job.details = {'message': message}
+            job.properties_found = properties_found
+            job.sales_found = sales_found
+            job.status = 'running' if progress < 100 else 'completed'
+            self.db.commit()
+        
+        # Get scraper and set progress callback
+        if county_code not in self.scrapers:
+            job.status = 'failed'
+            job.errors = f'No scraper configured for county: {county_code}'
+            self.db.commit()
+            return job_id
+        
+        scraper = self.scrapers[county_code]
+        scraper.set_progress_callback(update_progress)
+        
+        try:
+            # Run scraping
+            job.status = 'running'
+            self.db.commit()
+            
+            result = self._scrape_county(county_code, scraper)
+            
+            # Update job with results
+            job.properties_found = result['properties_count']
+            job.sales_found = result['sales_count']
+            job.completed_at = datetime.utcnow()
+            
+            if result['errors']:
+                job.errors = '\n'.join(result['errors'])
+                job.status = 'completed_with_errors'
+            else:
+                job.status = 'completed'
+            
+            self.db.commit()
+            
+            # Enrich properties if successful
+            if result['properties_count'] > 0:
+                self._enrich_recent_properties(county_code)
+            
+        except Exception as e:
+            job.status = 'failed'
+            job.errors = str(e)
+            job.completed_at = datetime.utcnow()
+            self.db.commit()
+            logger.error(f"Scraping job {job_id} failed: {str(e)}")
+        
+        return job_id
+    
+    def get_scraping_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
+        """Get status of a scraping job"""
+        job = self.db.query(ScrapingJob).filter(ScrapingJob.job_id == job_id).first()
+        
+        if not job:
+            return None
+        
+        return {
+            'job_id': job.job_id,
+            'county': job.county,
+            'status': job.status,
+            'progress': job.progress,
+            'message': job.details.get('message', '') if job.details else '',
+            'properties_found': job.properties_found,
+            'sales_found': job.sales_found,
+            'started_at': job.started_at.isoformat() if job.started_at else None,
+            'completed_at': job.completed_at.isoformat() if job.completed_at else None,
+            'errors': job.errors
+        }
+    
+    def _enrich_recent_properties(self, county_code: str):
+        """Enrich recently scraped properties with external data"""
+        try:
+            # Get properties without enrichment data
+            recent_properties = self.db.query(Property).join(
+                County
+            ).filter(
+                County.county_name.ilike(f'%{county_code}%'),
+                Property.created_at >= datetime.utcnow() - timedelta(hours=1)
+            ).limit(50).all()
+            
+            for property in recent_properties:
+                try:
+                    # Check if already enriched
+                    existing = self.db.query(PropertyEnrichment).filter(
+                        PropertyEnrichment.property_id == property.id
+                    ).first()
+                    
+                    if not existing:
+                        # Enrich property data
+                        property_dict = {
+                            'parcel_number': property.parcel_number,
+                            'property_address': property.property_address,
+                            'city': property.city,
+                            'state': property.state,
+                            'zip_code': property.zip_code,
+                            'latitude': float(property.latitude) if property.latitude else None,
+                            'longitude': float(property.longitude) if property.longitude else None,
+                            'assessed_value': float(property.assessed_value) if property.assessed_value else 0,
+                            'year_built': property.year_built,
+                            'building_sqft': property.square_footage,
+                            'lot_size': float(property.lot_size) if property.lot_size else None
+                        }
+                        
+                        enriched_data = self.enrichment_service.enrich_property(property_dict)
+                        
+                        # Save enrichment data
+                        enrichment = PropertyEnrichment(
+                            property_id=property.id,
+                            zillow_estimated_value=enriched_data.get('zillow_data', {}).get('estimated_value'),
+                            zillow_rent_estimate=enriched_data.get('zillow_data', {}).get('rent_estimate'),
+                            zestimate=enriched_data.get('zillow_data', {}).get('zestimate'),
+                            formatted_address=enriched_data.get('formatted_address'),
+                            place_id=enriched_data.get('place_id'),
+                            neighborhood_data=enriched_data.get('neighborhood_data'),
+                            investment_score=enriched_data.get('investment_metrics', {}).get('investment_score'),
+                            roi_percentage=enriched_data.get('investment_metrics', {}).get('roi_percentage'),
+                            cap_rate=enriched_data.get('investment_metrics', {}).get('cap_rate'),
+                            monthly_rent_estimate=enriched_data.get('investment_metrics', {}).get('monthly_rent_estimate'),
+                            data_quality_score=enriched_data.get('enrichment', {}).get('quality_score'),
+                            last_enriched_at=datetime.utcnow()
+                        )
+                        
+                        self.db.add(enrichment)
+                        
+                except Exception as e:
+                    logger.error(f"Error enriching property {property.id}: {str(e)}")
+                    continue
+            
+            self.db.commit()
+            
+        except Exception as e:
+            logger.error(f"Error in property enrichment: {str(e)}")

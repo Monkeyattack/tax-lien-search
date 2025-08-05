@@ -424,24 +424,21 @@ async def scrape_county_data(
     scraper_service = ScraperService(db)
     
     # Validate county code
-    valid_counties = ['collin', 'dallas']
+    valid_counties = ['collin', 'dallas', 'dallas-lgbs']
     if county_code not in valid_counties:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid county code. Valid options: {', '.join(valid_counties)}"
         )
     
-    # Run scraping in background
-    background_tasks.add_task(
-        scraper_service.scrape_county,
-        county_code,
-        current_user
-    )
+    # Create scraping job and get job ID
+    job_id = scraper_service.scrape_county_with_tracking(county_code, current_user)
     
     return {
         "message": f"Scraping initiated for {county_code} county",
         "status": "processing",
-        "note": "Check alerts for completion status"
+        "jobId": job_id,
+        "note": "Use the job ID to check scraping status"
     }
 
 @router.post("/scrape/all")
@@ -466,27 +463,45 @@ async def scrape_all_counties(
         "note": "Check alerts for completion status"
     }
 
+@router.get("/scrape/status/{job_id}")
+async def get_scraping_job_status(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get status of a specific scraping job"""
+    scraper_service = ScraperService(db)
+    status = scraper_service.get_scraping_job_status(job_id)
+    
+    if not status:
+        raise HTTPException(status_code=404, detail="Scraping job not found")
+    
+    return status
+
 @router.get("/scrape/status")
 async def get_scraping_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get status of recent scraping operations"""
-    # Get recent alerts related to scraping
-    recent_alerts = db.query(Alert).filter(
-        Alert.user_id == current_user.id,
-        Alert.title.contains("Scraping")
-    ).order_by(Alert.created_at.desc()).limit(5).all()
+    # Get recent scraping jobs
+    recent_jobs = db.query(ScrapingJob).order_by(
+        ScrapingJob.started_at.desc()
+    ).limit(10).all()
     
     return {
         "recent_operations": [
             {
-                "id": alert.id,
-                "title": alert.title,
-                "message": alert.message,
-                "created_at": alert.created_at,
-                "is_urgent": alert.is_urgent
+                "job_id": job.job_id,
+                "county": job.county,
+                "status": job.status,
+                "progress": job.progress,
+                "properties_found": job.properties_found,
+                "sales_found": job.sales_found,
+                "started_at": job.started_at.isoformat() if job.started_at else None,
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                "created_by": job.created_by
             }
-            for alert in recent_alerts
+            for job in recent_jobs
         ]
     }

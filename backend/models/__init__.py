@@ -8,6 +8,8 @@ from .alert import Alert
 from .document import Document
 from .research_note import ResearchNote
 from .property_valuation import PropertyValuation
+from .property_enrichment import PropertyEnrichment
+from .scraping_job import ScrapingJob
 
 __all__ = [
     "User",
@@ -19,5 +21,7 @@ __all__ = [
     "Alert",
     "Document",
     "ResearchNote",
-    "PropertyValuation"
+    "PropertyValuation",
+    "PropertyEnrichment",
+    "ScrapingJob"
 ]

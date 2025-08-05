@@ -41,6 +41,7 @@ class Property(Base):
     documents = relationship("Document", back_populates="property_ref")
     research_notes = relationship("ResearchNote", back_populates="property_ref")
     valuations = relationship("PropertyValuation", back_populates="property_ref")
+    enrichment = relationship("PropertyEnrichment", back_populates="property_ref", uselist=False)
     
     @property
     def redemption_period_months(self):

@@ -12,7 +12,8 @@
       "Bash(npm run build:*)",
       "Bash(scp:*)",
       "Bash(grep:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "WebFetch(domain:taxsales.lgbs.com)"
     ],
     "deny": []
   }
