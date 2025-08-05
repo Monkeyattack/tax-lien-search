@@ -36,8 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configure OAuth
-oauth.init_app(app)
+# OAuth is already configured in google_auth.py
 
 # Security
 security = HTTPBearer()

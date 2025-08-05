@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+from typing import Optional
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -26,9 +27,9 @@ class UserCreate(BaseModel):
     username: str
     email: EmailStr
     password: str
-    first_name: str = None
-    last_name: str = None
-    phone: str = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
 
 class UserLogin(BaseModel):
     username: str
@@ -42,13 +43,13 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: str
-    first_name: str = None
-    last_name: str = None
-    phone: str = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
     is_active: bool
     is_admin: bool
     auth_provider: str
-    profile_picture: str = None
+    profile_picture: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -183,17 +184,19 @@ def update_user_profile(
 @router.get("/google/login")
 async def google_login(request: Request):
     """Initiate Google OAuth login"""
-    redirect_uri = request.url_for('google_callback')
-    # In production, use the actual domain
+    # Always use explicit redirect URI to avoid proxy issues
     if config('APP_ENV', default='development') == 'production':
-        redirect_uri = f"https://tax.profithits.app/api/auth/google/callback"
+        redirect_uri = "https://tax.profithits.app/api/auth/google/callback"
+    else:
+        redirect_uri = "http://localhost:8000/api/auth/google/callback"
     
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
-@router.get("/google/callback")
+@router.get("/google/callback", name="google_callback")
 async def google_callback(request: Request, db: Session = Depends(get_database)):
     """Handle Google OAuth callback"""
     try:
+        # Get the access token (authlib will automatically use the correct redirect_uri)
         token = await oauth.google.authorize_access_token(request)
         user_info = token.get('userinfo')
         

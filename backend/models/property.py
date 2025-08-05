@@ -28,11 +28,11 @@ class Property(Base):
     
     # Relationships
     county = relationship("County", back_populates="properties")
-    tax_sales = relationship("TaxSale", back_populates="property")
-    investments = relationship("Investment", back_populates="property")
-    documents = relationship("Document", back_populates="property")
-    research_notes = relationship("ResearchNote", back_populates="property")
-    valuations = relationship("PropertyValuation", back_populates="property")
+    tax_sales = relationship("TaxSale", back_populates="property_ref")
+    investments = relationship("Investment", back_populates="property_ref")
+    documents = relationship("Document", back_populates="property_ref")
+    research_notes = relationship("ResearchNote", back_populates="property_ref")
+    valuations = relationship("PropertyValuation", back_populates="property_ref")
     
     @property
     def redemption_period_months(self):
