@@ -10,6 +10,7 @@ from datetime import datetime
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
+from .zillow_public_scraper import ZillowPublicScraper
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,7 @@ class PropertyEnrichmentService:
     
     def __init__(self):
         self.google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', '')
-        self.zillow_api_key = os.getenv('ZILLOW_API_KEY', '')
-        self.rapidapi_key = os.getenv('RAPIDAPI_KEY', '')  # For Zillow alternative
+        self.zillow_scraper = ZillowPublicScraper()
         
         # Initialize session with retry logic
         self.session = requests.Session()
@@ -37,16 +37,21 @@ class PropertyEnrichmentService:
         enriched = property_data.copy()
         
         try:
-            # Get coordinates if not present
+            # Get Zillow data first (it might include coordinates)
+            zillow_data = self._get_zillow_data(enriched)
+            if zillow_data:
+                enriched['zillow_data'] = zillow_data
+                
+                # Update coordinates from Zillow if available
+                if zillow_data.get('latitude') and zillow_data.get('longitude'):
+                    enriched['latitude'] = zillow_data['latitude']
+                    enriched['longitude'] = zillow_data['longitude']
+            
+            # Get coordinates if still not present
             if not enriched.get('latitude') or not enriched.get('longitude'):
                 coords = self._geocode_address(enriched)
                 if coords:
                     enriched.update(coords)
-            
-            # Get Zillow data
-            zillow_data = self._get_zillow_data(enriched)
-            if zillow_data:
-                enriched['zillow_data'] = zillow_data
             
             # Get neighborhood data from Google
             if enriched.get('latitude') and enriched.get('longitude'):
@@ -149,51 +154,65 @@ class PropertyEnrichmentService:
         return None
     
     def _get_zillow_data(self, property_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Get property data from Zillow (or alternative real estate APIs)"""
-        # Note: Zillow's official API is limited. Using RapidAPI alternatives
-        if not self.rapidapi_key:
-            return self._get_mock_zillow_data(property_data)
-        
+        """Get property data from Zillow public pages"""
         try:
-            # Use RapidAPI Realty Mole API as Zillow alternative
-            url = "https://realty-mole-property-api.p.rapidapi.com/properties"
+            # Use Zillow public scraper
+            zillow_raw = self.zillow_scraper.get_property_data(
+                address=property_data.get('property_address', ''),
+                city=property_data.get('city', ''),
+                state=property_data.get('state', 'TX'),
+                zip_code=property_data.get('zip_code', '')
+            )
             
-            headers = {
-                "X-RapidAPI-Key": self.rapidapi_key,
-                "X-RapidAPI-Host": "realty-mole-property-api.p.rapidapi.com"
+            if not zillow_raw:
+                logger.info(f"No Zillow data found for {property_data.get('property_address')}")
+                return self._get_mock_zillow_data(property_data)
+            
+            # Transform Zillow public data to our format
+            details = zillow_raw.get('details', {})
+            
+            zillow_data = {
+                'estimated_value': zillow_raw.get('zestimate'),
+                'property_type': property_data.get('property_type', 'Single Family'),
+                'bedrooms': details.get('bedrooms'),
+                'bathrooms': details.get('bathrooms'),
+                'square_footage': details.get('square_footage'),
+                'lot_size': details.get('lot_size_sqft'),
+                'lot_size_acres': details.get('lot_size_acres'),
+                'year_built': details.get('year_built'),
+                'zestimate': zillow_raw.get('zestimate'),
+                'zillow_url': zillow_raw.get('url'),
+                'price_history': zillow_raw.get('price_history', []),
+                'tax_history': zillow_raw.get('tax_history', []),
+                'nearby_schools': zillow_raw.get('nearby_schools', []),
+                'neighborhood_info': zillow_raw.get('neighborhood', {})
             }
             
-            params = {
-                "address": property_data.get('property_address', ''),
-                "city": property_data.get('city', ''),
-                "state": property_data.get('state', 'TX'),
-                "zipCode": property_data.get('zip_code', '')
-            }
+            # Get rental estimate
+            rent_estimate = self.zillow_scraper.get_rental_estimate(zillow_raw)
+            if rent_estimate:
+                zillow_data['rent_estimate'] = rent_estimate
             
-            response = self.session.get(url, headers=headers, params=params, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                return {
-                    'estimated_value': data.get('estimatedValue'),
-                    'rent_estimate': data.get('rentEstimate'),
-                    'property_type': data.get('propertyType'),
-                    'bedrooms': data.get('bedrooms'),
-                    'bathrooms': data.get('bathrooms'),
-                    'square_footage': data.get('squareFootage'),
-                    'lot_size': data.get('lotSize'),
-                    'year_built': data.get('yearBuilt'),
-                    'last_sold_date': data.get('lastSoldDate'),
-                    'last_sold_price': data.get('lastSoldPrice'),
-                    'tax_assessment': data.get('taxAssessment'),
-                    'features': data.get('features', []),
-                    'comparable_properties': data.get('comparables', [])
-                }
+            # Extract coordinates if available
+            if 'coordinates' in zillow_raw:
+                coords = zillow_raw['coordinates']
+                if coords.get('latitude') and coords.get('longitude'):
+                    zillow_data['latitude'] = coords['latitude']
+                    zillow_data['longitude'] = coords['longitude']
+            
+            # Extract last sold info from price history
+            if zillow_data['price_history']:
+                for entry in zillow_data['price_history']:
+                    if 'sold' in entry.get('event', '').lower():
+                        zillow_data['last_sold_date'] = entry.get('date')
+                        zillow_data['last_sold_price'] = entry.get('price')
+                        break
+            
+            return zillow_data
             
         except Exception as e:
             logger.error(f"Zillow data error: {str(e)}")
-        
-        # Return mock data for development
-        return self._get_mock_zillow_data(property_data)
+            return self._get_mock_zillow_data(property_data)
     
     def _get_mock_zillow_data(self, property_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate mock Zillow-style data for development"""
