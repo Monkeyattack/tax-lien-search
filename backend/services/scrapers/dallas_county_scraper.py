@@ -2,6 +2,7 @@ from typing import List, Dict, Any
 import re
 from datetime import datetime
 from .base_scraper import BaseTaxSaleScraper
+from .mock_scraper import MockCountyScraper
 import logging
 import json
 
@@ -19,15 +20,16 @@ class DallasCountyScraper(BaseTaxSaleScraper):
         self.county_code = "dallas-tx"
         
     def scrape_upcoming_sales(self) -> List[Dict[str, Any]]:
-        """Scrape upcoming tax sales from Dallas County via RealAuction"""
-        sales = []
+        """Scrape upcoming tax sales from Dallas County"""
+        # For demonstration, use mock scraper
+        # In production, this would implement actual web scraping
+        logger.info("Starting Dallas County scrape (using mock data for demonstration)")
         
-        try:
-            # RealAuction.com typically has an API endpoint
-            # This is a simplified example - actual implementation would need proper API integration
+        mock_scraper = MockCountyScraper("Dallas County")
+        if hasattr(self, 'progress_callback'):
+            mock_scraper.set_progress_callback(self.progress_callback)
             
-            # Get upcoming auctions
-            auction_url = f"{self.api_base}/auctions?county={self.county_code}&type=tax-deed"
+        return mock_scraper.scrape_upcoming_sales()
             
             response = self.session.get(auction_url)
             if response.status_code == 200:

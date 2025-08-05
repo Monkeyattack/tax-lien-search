@@ -8,8 +8,7 @@ ALTER TABLE properties ADD COLUMN square_footage INTEGER;
 ALTER TABLE properties ADD COLUMN bedrooms INTEGER;
 ALTER TABLE properties ADD COLUMN bathrooms DECIMAL(3,1);
 ALTER TABLE properties ADD COLUMN senior_exemption BOOLEAN DEFAULT FALSE;
-ALTER TABLE properties ADD COLUMN latitude DECIMAL(10,6);
-ALTER TABLE properties ADD COLUMN longitude DECIMAL(11,6);
+-- latitude and longitude columns already exist
 
 -- Create unique index on parcel_number
 CREATE UNIQUE INDEX idx_properties_parcel_number ON properties(parcel_number);

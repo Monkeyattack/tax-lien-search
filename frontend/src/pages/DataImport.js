@@ -16,6 +16,7 @@ const DataImport = () => {
   const [importType, setImportType] = useState('properties');
   const [validationResult, setValidationResult] = useState(null);
   const [importResult, setImportResult] = useState(null);
+  const [scrapingStatus, setScrapingStatus] = useState({});
 
   // Validate file mutation
   const validateMutation = useMutation(
@@ -57,8 +58,69 @@ const DataImport = () => {
     async (countyCode) => {
       const response = await api.post(`/data-import/scrape/${countyCode}`);
       return response.data;
+    },
+    {
+      onMutate: (countyCode) => {
+        setScrapingStatus(prev => ({
+          ...prev,
+          [countyCode]: { status: 'starting', message: 'Initializing scraper...' }
+        }));
+      },
+      onSuccess: (data, countyCode) => {
+        setScrapingStatus(prev => ({
+          ...prev,
+          [countyCode]: { 
+            status: 'running', 
+            message: 'Scraping in progress. This may take several minutes...', 
+            jobId: data.jobId 
+          }
+        }));
+        // Start polling for status
+        if (data.jobId) {
+          pollScrapingStatus(data.jobId, countyCode);
+        }
+      },
+      onError: (error, countyCode) => {
+        setScrapingStatus(prev => ({
+          ...prev,
+          [countyCode]: { 
+            status: 'error', 
+            message: error.response?.data?.detail || 'Scraping failed' 
+          }
+        }));
+      }
     }
   );
+
+  // Poll for scraping status
+  const pollScrapingStatus = async (jobId, countyCode) => {
+    const checkStatus = async () => {
+      try {
+        const response = await api.get(`/data-import/scrape/status/${jobId}`);
+        const data = response.data;
+        
+        setScrapingStatus(prev => ({
+          ...prev,
+          [countyCode]: {
+            status: data.status,
+            message: data.message,
+            progress: data.progress,
+            propertiesFound: data.properties_found,
+            salesFound: data.sales_found
+          }
+        }));
+        
+        // Continue polling if still running
+        if (data.status === 'running' || data.status === 'pending') {
+          setTimeout(checkStatus, 3000); // Poll every 3 seconds
+        }
+      } catch (error) {
+        console.error('Error checking scraping status:', error);
+      }
+    };
+    
+    checkStatus();
+  };
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
@@ -279,32 +341,84 @@ const DataImport = () => {
           </p>
           
           <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => scrapeMutation.mutate('collin')}
-              disabled={scrapeMutation.isLoading}
-              className="btn-secondary"
-            >
-              <ArrowPathIcon className={`h-4 w-4 mr-2 ${scrapeMutation.isLoading ? 'animate-spin' : ''}`} />
-              Scrape Collin County
-            </button>
-            
-            <button
-              onClick={() => scrapeMutation.mutate('dallas')}
-              disabled={scrapeMutation.isLoading}
-              className="btn-secondary"
-            >
-              <ArrowPathIcon className={`h-4 w-4 mr-2 ${scrapeMutation.isLoading ? 'animate-spin' : ''}`} />
-              Scrape Dallas County
-            </button>
-          </div>
-
-          {scrapeMutation.isSuccess && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-md">
-              <p className="text-sm text-blue-800">
-                {scrapeMutation.data.message}. Check your alerts for completion status.
-              </p>
+            <div>
+              <button
+                onClick={() => scrapeMutation.mutate('collin')}
+                disabled={scrapeMutation.isLoading || scrapingStatus.collin?.status === 'running'}
+                className="btn-secondary w-full"
+              >
+                <ArrowPathIcon className={`h-4 w-4 mr-2 ${scrapingStatus.collin?.status === 'running' ? 'animate-spin' : ''}`} />
+                Scrape Collin County
+              </button>
+              {scrapingStatus.collin && (
+                <div className={`mt-2 p-3 rounded-md text-sm ${
+                  scrapingStatus.collin.status === 'error' ? 'bg-red-50 text-red-800' :
+                  scrapingStatus.collin.status === 'completed' ? 'bg-green-50 text-green-800' :
+                  'bg-blue-50 text-blue-800'
+                }`}>
+                  <p className="font-medium">{scrapingStatus.collin.message}</p>
+                  {scrapingStatus.collin.progress !== undefined && (
+                    <div className="mt-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>Progress</span>
+                        <span>{scrapingStatus.collin.progress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-tax-primary h-2 rounded-full transition-all"
+                          style={{ width: `${scrapingStatus.collin.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {(scrapingStatus.collin.propertiesFound !== undefined || scrapingStatus.collin.salesFound !== undefined) && (
+                    <p className="mt-2 text-xs">
+                      Found: {scrapingStatus.collin.propertiesFound || 0} properties, {scrapingStatus.collin.salesFound || 0} sales
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+            
+            <div>
+              <button
+                onClick={() => scrapeMutation.mutate('dallas')}
+                disabled={scrapeMutation.isLoading || scrapingStatus.dallas?.status === 'running'}
+                className="btn-secondary w-full"
+              >
+                <ArrowPathIcon className={`h-4 w-4 mr-2 ${scrapingStatus.dallas?.status === 'running' ? 'animate-spin' : ''}`} />
+                Scrape Dallas County
+              </button>
+              {scrapingStatus.dallas && (
+                <div className={`mt-2 p-3 rounded-md text-sm ${
+                  scrapingStatus.dallas.status === 'error' ? 'bg-red-50 text-red-800' :
+                  scrapingStatus.dallas.status === 'completed' ? 'bg-green-50 text-green-800' :
+                  'bg-blue-50 text-blue-800'
+                }`}>
+                  <p className="font-medium">{scrapingStatus.dallas.message}</p>
+                  {scrapingStatus.dallas.progress !== undefined && (
+                    <div className="mt-2">
+                      <div className="flex justify-between text-xs mb-1">
+                        <span>Progress</span>
+                        <span>{scrapingStatus.dallas.progress}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-tax-primary h-2 rounded-full transition-all"
+                          style={{ width: `${scrapingStatus.dallas.progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {(scrapingStatus.dallas.propertiesFound !== undefined || scrapingStatus.dallas.salesFound !== undefined) && (
+                    <p className="mt-2 text-xs">
+                      Found: {scrapingStatus.dallas.propertiesFound || 0} properties, {scrapingStatus.dallas.salesFound || 0} sales
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
