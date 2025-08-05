@@ -30,29 +30,6 @@ class DallasCountyScraper(BaseTaxSaleScraper):
             mock_scraper.set_progress_callback(self.progress_callback)
             
         return mock_scraper.scrape_upcoming_sales()
-            
-            response = self.session.get(auction_url)
-            if response.status_code == 200:
-                auctions = response.json()
-                
-                for auction in auctions.get('data', []):
-                    sale_info = self.parse_auction_data(auction)
-                    if sale_info:
-                        sales.append(sale_info)
-                        
-                        # Get properties for this auction
-                        properties = self.get_auction_properties(auction['id'])
-                        sale_info['properties'] = properties
-                        
-                        self.delay(1.0)  # Rate limiting
-            else:
-                # Fallback to HTML scraping
-                sales = self.scrape_html_listings()
-                
-        except Exception as e:
-            logger.error(f"Error scraping Dallas County: {str(e)}")
-            
-        return sales
     
     def parse_auction_data(self, auction: Dict) -> Dict[str, Any]:
         """Parse auction data from API response"""
