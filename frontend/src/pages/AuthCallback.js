@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { toast } from 'react-toastify';
+import { showToast } from '../utils/toastUtils';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -14,7 +14,7 @@ const AuthCallback = () => {
       const error = searchParams.get('error');
 
       if (error) {
-        toast.error(`Authentication failed: ${error}`);
+        showToast.error(`Authentication failed: ${error}`);
         navigate('/login');
         return;
       }
@@ -23,18 +23,18 @@ const AuthCallback = () => {
         try {
           const result = await loginWithToken(token);
           if (result.success) {
-            toast.success('Login successful!');
+            showToast.success('Login successful!');
             navigate('/');
           } else {
-            toast.error('Failed to authenticate with token');
+            showToast.error('Failed to authenticate with token');
             navigate('/login');
           }
         } catch (err) {
-          toast.error('Authentication error');
+          showToast.error('Authentication error');
           navigate('/login');
         }
       } else {
-        toast.error('No authentication token received');
+        showToast.error('No authentication token received');
         navigate('/login');
       }
     };

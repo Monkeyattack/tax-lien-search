@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useMutation, useQuery } from 'react-query';
 import api from '../services/authService';
+import ZillowAttribution from '../components/ZillowAttribution';
 import {
   CloudArrowUpIcon,
   DocumentTextIcon,
@@ -340,7 +341,7 @@ const DataImport = () => {
             Automatically scrape tax sale data from county websites
           </p>
           
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <button
                 onClick={() => scrapeMutation.mutate('collin')}
@@ -382,51 +383,12 @@ const DataImport = () => {
             
             <div>
               <button
-                onClick={() => scrapeMutation.mutate('dallas')}
-                disabled={scrapeMutation.isLoading || scrapingStatus.dallas?.status === 'running'}
-                className="btn-secondary w-full"
-              >
-                <ArrowPathIcon className={`h-4 w-4 mr-2 ${scrapingStatus.dallas?.status === 'running' ? 'animate-spin' : ''}`} />
-                Scrape Dallas County
-              </button>
-              {scrapingStatus.dallas && (
-                <div className={`mt-2 p-3 rounded-md text-sm ${
-                  scrapingStatus.dallas.status === 'error' ? 'bg-red-50 text-red-800' :
-                  scrapingStatus.dallas.status === 'completed' ? 'bg-green-50 text-green-800' :
-                  'bg-blue-50 text-blue-800'
-                }`}>
-                  <p className="font-medium">{scrapingStatus.dallas.message}</p>
-                  {scrapingStatus.dallas.progress !== undefined && (
-                    <div className="mt-2">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>Progress</span>
-                        <span>{scrapingStatus.dallas.progress}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-tax-primary h-2 rounded-full transition-all"
-                          style={{ width: `${scrapingStatus.dallas.progress}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {(scrapingStatus.dallas.propertiesFound !== undefined || scrapingStatus.dallas.salesFound !== undefined) && (
-                    <p className="mt-2 text-xs">
-                      Found: {scrapingStatus.dallas.propertiesFound || 0} properties, {scrapingStatus.dallas.salesFound || 0} sales
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            <div>
-              <button
                 onClick={() => scrapeMutation.mutate('dallas-lgbs')}
                 disabled={scrapeMutation.isLoading || scrapingStatus['dallas-lgbs']?.status === 'running'}
                 className="btn-primary w-full"
               >
                 <ArrowPathIcon className={`h-4 w-4 mr-2 ${scrapingStatus['dallas-lgbs']?.status === 'running' ? 'animate-spin' : ''}`} />
-                Dallas LGBS Listings
+                Scrape Dallas County
               </button>
               {scrapingStatus['dallas-lgbs'] && (
                 <div className={`mt-2 p-3 rounded-md text-sm ${
@@ -460,8 +422,10 @@ const DataImport = () => {
           </div>
           
           <div className="mt-4 text-xs text-gray-500">
-            <p><strong>Dallas LGBS Listings:</strong> Scrapes active tax sale listings from the LGBS system with property enrichment from Zillow and Google Maps.</p>
+            <p><strong>Dallas County:</strong> Scrapes active tax sale listings from the LGBS system with property enrichment from Zillow and Google Maps.</p>
           </div>
+          
+          <ZillowAttribution />
         </div>
       </div>
     </div>
