@@ -10,6 +10,7 @@ from .research_note import ResearchNote
 from .property_valuation import PropertyValuation
 from .property_enrichment import PropertyEnrichment
 from .scraping_job import ScrapingJob
+from .saved_search import SavedSearch, SearchResult
 
 __all__ = [
     "User",
@@ -23,5 +24,7 @@ __all__ = [
     "ResearchNote",
     "PropertyValuation",
     "PropertyEnrichment",
-    "ScrapingJob"
+    "ScrapingJob",
+    "SavedSearch",
+    "SearchResult"
 ]

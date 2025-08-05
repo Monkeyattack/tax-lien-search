@@ -15,6 +15,7 @@ import Dashboard from './pages/Dashboard';
 import Properties from './pages/Properties';
 import PropertyDetail from './pages/PropertyDetail';
 import PropertyDetailEnhanced from './pages/PropertyDetailEnhanced';
+import SavedSearches from './pages/SavedSearches';
 import Investments from './pages/Investments';
 import InvestmentDetail from './pages/InvestmentDetail';
 import Counties from './pages/Counties';
@@ -56,6 +57,7 @@ function App() {
                 <Route index element={<Dashboard />} />
                 <Route path="properties" element={<Properties />} />
                 <Route path="properties/:id" element={<PropertyDetailEnhanced />} />
+                <Route path="saved-searches" element={<SavedSearches />} />
                 <Route path="investments" element={<Investments />} />
                 <Route path="investments/:id" element={<InvestmentDetail />} />
                 <Route path="counties" element={<Counties />} />

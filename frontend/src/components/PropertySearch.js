@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import api from '../services/authService';
+import SaveSearchModal from './SaveSearchModal';
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
@@ -10,12 +11,14 @@ import {
   StarIcon,
   MapPinIcon,
   ChevronDownIcon,
+  BookmarkIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 const PropertySearch = ({ onPropertySelect }) => {
   const [searchText, setSearchText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
   const [filters, setFilters] = useState({
     county_ids: [],
     cities: [],
@@ -87,6 +90,14 @@ const PropertySearch = ({ onPropertySelect }) => {
         >
           <AdjustmentsHorizontalIcon className="h-5 w-5 mr-2" />
           Filters
+        </button>
+        <button
+          onClick={() => setShowSaveModal(true)}
+          className="btn-secondary inline-flex items-center"
+          title="Save this search"
+        >
+          <BookmarkIcon className="h-5 w-5 mr-2" />
+          Save
         </button>
       </div>
 
@@ -397,6 +408,21 @@ const PropertySearch = ({ onPropertySelect }) => {
           </div>
         )}
       </div>
+      
+      {/* Save Search Modal */}
+      <SaveSearchModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        filters={{
+          ...filters,
+          search_text: searchText,
+          // Convert empty strings to null for the API
+          min_assessed_value: filters.min_assessed_value || null,
+          max_assessed_value: filters.max_assessed_value || null,
+          min_investment_score: filters.min_investment_score || null,
+          min_roi_percentage: filters.min_roi_percentage || null,
+        }}
+      />
     </div>
   );
 };

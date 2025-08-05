@@ -25,12 +25,23 @@ A comprehensive tax lien/deed search and tracking application for Texas tax sale
 - **Payment**: Cash/cashier's check required immediately
 
 ## Development Commands
-- Setup: `python setup.py`
-- Backend: `cd backend && uvicorn main:app --reload --port 8000`
-- Frontend: `cd frontend && npm start` (port 3001 - conflicts with calendar-app)
-- Database: `alembic upgrade head`
-- Tests: `pytest`
-- Deploy: `pm2 restart tax-lien-api` (on VPS)
+
+### CRITICAL: ALL CODE EXECUTION MUST BE ON VPS
+**NEVER run Python, Node, or database commands locally on Windows.**
+**ALWAYS SSH to VPS first: `ssh root@172.93.51.42`**
+
+### On VPS (172.93.51.42):
+- Setup: `ssh root@172.93.51.42 && cd /root/tax-lien-search && python setup.py`
+- Backend: `ssh root@172.93.51.42 && cd /root/tax-lien-search/backend && uvicorn main:app --reload --port 8000`
+- Frontend: `ssh root@172.93.51.42 && cd /root/tax-lien-search/frontend && npm start`
+- Database: `ssh root@172.93.51.42 && cd /root/tax-lien-search/backend && alembic upgrade head`
+- Tests: `ssh root@172.93.51.42 && cd /root/tax-lien-search && pytest`
+- Deploy: `ssh root@172.93.51.42 && pm2 restart tax-lien-api`
+
+### Local Development (Windows):
+- **ONLY** for editing code files
+- **NEVER** run Python or Node commands locally
+- Use Git Bash for file operations only
 
 ## Key Files
 - `backend/main.py`: FastAPI application entry point

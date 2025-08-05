@@ -1,5 +1,5 @@
 """
-Scheduled tasks for automated scraping
+Scheduled tasks for automated scraping and alerts
 """
 import logging
 from datetime import datetime
@@ -8,6 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from services.scraper_service import ScraperService
+from services.alert_service import AlertService
 from models import User
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,20 @@ def daily_scraping_task():
         db.close()
 
 
+def check_saved_search_alerts():
+    """Check saved searches and send alerts for new matches"""
+    logger.info(f"Starting saved search alert check at {datetime.now()}")
+    
+    db = next(get_db())
+    try:
+        alert_service = AlertService(db)
+        alert_service.check_saved_search_alerts()
+    except Exception as e:
+        logger.error(f"Error checking saved search alerts: {str(e)}")
+    finally:
+        db.close()
+
+
 def start_scheduler():
     """Initialize and start the scheduler"""
     # Schedule daily scraping at 3 AM
@@ -68,6 +83,15 @@ def start_scheduler():
         daily_scraping_task,
         CronTrigger(hour=3, minute=0),
         id='daily_scraping',
+        replace_existing=True
+    )
+    
+    # Schedule hourly alert checks
+    scheduler.add_job(
+        check_saved_search_alerts,
+        'interval',
+        hours=1,
+        id='hourly_alert_check',
         replace_existing=True
     )
     
@@ -80,7 +104,7 @@ def start_scheduler():
     )
     
     scheduler.start()
-    logger.info("Scheduler started")
+    logger.info("Scheduler started with daily scraping and hourly alert checks")
 
 
 def shutdown_scheduler():

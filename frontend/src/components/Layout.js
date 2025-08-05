@@ -11,11 +11,13 @@ import {
   Bars3Icon,
   XMarkIcon,
   CloudArrowUpIcon,
+  BookmarkIcon,
 } from '@heroicons/react/24/outline';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Properties', href: '/properties', icon: BuildingOfficeIcon },
+  { name: 'Saved Searches', href: '/saved-searches', icon: BookmarkIcon },
   { name: 'Investments', href: '/investments', icon: CurrencyDollarIcon },
   { name: 'Counties', href: '/counties', icon: MapIcon },
   { name: 'Alerts', href: '/alerts', icon: BellIcon },

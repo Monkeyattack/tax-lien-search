@@ -26,6 +26,7 @@ class User(Base):
     alerts = relationship("Alert", back_populates="user")
     documents = relationship("Document", back_populates="user")
     research_notes = relationship("ResearchNote", back_populates="user")
+    saved_searches = relationship("SavedSearch", back_populates="user")
     
     @property
     def full_name(self):

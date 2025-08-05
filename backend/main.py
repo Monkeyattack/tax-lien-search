@@ -9,7 +9,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from database import engine, SessionLocal, Base
-from routers import auth, properties, investments, alerts, counties, data_import, property_search
+from routers import auth, properties, investments, alerts, counties, data_import, property_search, saved_searches
 from models import User
 from services.google_auth import oauth
 
@@ -79,6 +79,7 @@ def get_db():
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(properties.router, prefix="/api/properties", tags=["properties"])
 app.include_router(property_search.router, prefix="/api", tags=["property-search"])
+app.include_router(saved_searches.router, prefix="/api/saved-searches", tags=["saved-searches"])
 app.include_router(investments.router, prefix="/api/investments", tags=["investments"])
 app.include_router(alerts.router, prefix="/api/alerts", tags=["alerts"])
 app.include_router(counties.router, prefix="/api/counties", tags=["counties"])
