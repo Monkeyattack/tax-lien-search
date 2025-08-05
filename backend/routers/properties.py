@@ -1,15 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import date
+from datetime import date, datetime
 
 from database import get_database
 from models.property import Property
 from models.county import County
 from models.tax_sale import TaxSale
 from models.property_valuation import PropertyValuation
+from models.property_enrichment import PropertyEnrichment
 from models.user import User
 from routers.auth import get_current_user
 
@@ -98,6 +99,7 @@ def get_property(
     db: Session = Depends(get_database),
     current_user: User = Depends(get_current_user)
 ):
+    """Get basic property information"""
     property_obj = db.query(Property).filter(Property.id == property_id).first()
     if not property_obj:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -280,3 +282,90 @@ def get_investment_analysis(
     }
     
     return analysis
+
+@router.get("/{property_id}/enriched")
+def get_property_enriched(
+    property_id: int,
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
+):
+    """Get property with all enrichment data"""
+    property_obj = db.query(Property).options(
+        joinedload(Property.county),
+        joinedload(Property.enrichment),
+        joinedload(Property.tax_sales)
+    ).filter(Property.id == property_id).first()
+    
+    if not property_obj:
+        raise HTTPException(status_code=404, detail="Property not found")
+    
+    # Get next tax sale
+    next_sale = None
+    for sale in property_obj.tax_sales:
+        if sale.sale_date >= datetime.now().date() and sale.sale_status == 'scheduled':
+            if not next_sale or sale.sale_date < next_sale.sale_date:
+                next_sale = sale
+    
+    # Format response
+    response = {
+        "id": property_obj.id,
+        "parcel_number": property_obj.parcel_number,
+        "owner_name": property_obj.owner_name,
+        "property_address": property_obj.property_address,
+        "city": property_obj.city,
+        "state": property_obj.state,
+        "zip_code": property_obj.zip_code,
+        "property_type": property_obj.property_type,
+        "assessed_value": float(property_obj.assessed_value) if property_obj.assessed_value else None,
+        "market_value": float(property_obj.market_value) if property_obj.market_value else None,
+        "lot_size": float(property_obj.lot_size) if property_obj.lot_size else None,
+        "square_footage": property_obj.square_footage,
+        "bedrooms": property_obj.bedrooms,
+        "bathrooms": float(property_obj.bathrooms) if property_obj.bathrooms else None,
+        "year_built": property_obj.year_built,
+        "latitude": float(property_obj.latitude) if property_obj.latitude else None,
+        "longitude": float(property_obj.longitude) if property_obj.longitude else None,
+        "redemption_period_months": property_obj.redemption_period_months,
+        "expected_penalty_rate": property_obj.expected_penalty_rate,
+        
+        "county": {
+            "id": property_obj.county.id,
+            "name": property_obj.county.county_name,
+            "state": property_obj.county.county_state
+        } if property_obj.county else None,
+        
+        "next_tax_sale": {
+            "id": next_sale.id,
+            "sale_date": next_sale.sale_date.isoformat(),
+            "minimum_bid": float(next_sale.minimum_bid),
+            "taxes_owed": float(next_sale.taxes_owed),
+            "total_judgment": float(next_sale.total_judgment),
+            "case_number": next_sale.case_number
+        } if next_sale else None,
+        
+        "enrichment": None
+    }
+    
+    # Add enrichment data if available
+    if property_obj.enrichment:
+        enr = property_obj.enrichment
+        response["enrichment"] = {
+            "investment_score": float(enr.investment_score) if enr.investment_score else None,
+            "roi_percentage": float(enr.roi_percentage) if enr.roi_percentage else None,
+            "cap_rate": float(enr.cap_rate) if enr.cap_rate else None,
+            "cash_on_cash_return": float(enr.cash_on_cash_return) if enr.cash_on_cash_return else None,
+            "monthly_rent_estimate": float(enr.monthly_rent_estimate) if enr.monthly_rent_estimate else None,
+            "gross_rent_multiplier": float(enr.gross_rent_multiplier) if enr.gross_rent_multiplier else None,
+            "zestimate": float(enr.zestimate) if enr.zestimate else None,
+            "zillow_url": enr.zillow_url,
+            "estimated_rehab_cost": float(enr.estimated_rehab_cost) if enr.estimated_rehab_cost else None,
+            "estimated_arv": float(enr.estimated_arv) if enr.estimated_arv else None,
+            "neighborhood_data": enr.neighborhood_data,
+            "zillow_price_history": enr.zillow_price_history,
+            "zillow_tax_history": enr.zillow_tax_history,
+            "nearby_schools": enr.neighborhood_data.get("schools", []) if enr.neighborhood_data else [],
+            "data_quality_score": float(enr.data_quality_score) if enr.data_quality_score else None,
+            "last_enriched_at": enr.last_enriched_at.isoformat() if enr.last_enriched_at else None
+        }
+    
+    return response

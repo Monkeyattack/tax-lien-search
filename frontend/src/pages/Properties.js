@@ -1,20 +1,33 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import PropertySearch from '../components/PropertySearch';
+import GoogleAd from '../components/GoogleAd';
 
 const Properties = () => {
+  const navigate = useNavigate();
+  const [selectedProperty, setSelectedProperty] = useState(null);
+
+  const handlePropertySelect = (property) => {
+    navigate(`/properties/${property.id}`);
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Properties</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Property Search</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Search and analyze tax sale properties
+          Search tax sale properties with advanced filters and investment analysis
         </p>
       </div>
       
-      <div className="card">
-        <div className="card-body">
-          <p className="text-gray-600">Property search and management functionality coming soon...</p>
-        </div>
-      </div>
+      {/* Top Banner Ad */}
+      <GoogleAd adSlot="top-banner" />
+      
+      {/* Property Search Component */}
+      <PropertySearch onPropertySelect={handlePropertySelect} />
+      
+      {/* Bottom Banner Ad */}
+      <GoogleAd adSlot="bottom-banner" />
     </div>
   );
 };

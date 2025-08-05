@@ -30,7 +30,7 @@ const Login = () => {
       const result = await login(formData.username, formData.password);
       
       if (result.success) {
-        toast.success('Login successful!');
+        // Toast is shown by AuthContext after successful login
       } else {
         toast.error(result.error);
       }
