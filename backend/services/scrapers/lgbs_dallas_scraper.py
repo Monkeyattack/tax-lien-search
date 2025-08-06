@@ -6,11 +6,13 @@ import json
 import logging
 import time
 import re
+import io
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import requests
 from urllib.parse import urlencode, quote
 from bs4 import BeautifulSoup
+import pdfplumber
 
 from .base_scraper import BaseTaxSaleScraper
 
@@ -91,9 +93,11 @@ class LGBSDallasScraper(BaseTaxSaleScraper):
             return []
     
     def _fetch_from_public_works(self) -> List[Dict[str, Any]]:
-        """Fetch struck-off properties from Dallas County Public Works"""
+        """Fetch struck-off properties from Dallas County Public Works PDF"""
         try:
-            logger.info("Fetching properties from Dallas County Public Works")
+            logger.info("Fetching properties from Dallas County Public Works PDF")
+            
+            # First get the page to find the current PDF link
             response = self.session.get(
                 "https://www.dallascounty.org/departments/pubworks/property-division.php",
                 timeout=30
@@ -102,40 +106,35 @@ class LGBSDallasScraper(BaseTaxSaleScraper):
             if response.status_code != 200:
                 return []
             
+            # Find the struck-off properties PDF link
             soup = BeautifulSoup(response.content, 'html.parser')
-            properties = []
+            pdf_url = None
             
-            # Look for property tables
-            tables = soup.find_all('table')
-            for table in tables:
-                rows = table.find_all('tr')
-                if len(rows) < 2:  # Need header + data
-                    continue
+            links = soup.find_all('a', href=True)
+            for link in links:
+                href = link.get('href', '')
+                text = link.get_text(strip=True).lower()
                 
-                # Get headers
-                header_row = rows[0]
-                headers = [th.get_text(strip=True).lower() for th in header_row.find_all(['th', 'td'])]
-                
-                # Check if this looks like a property table
-                if not any(word in ' '.join(headers) for word in ['property', 'address', 'parcel', 'bid']):
-                    continue
-                
-                # Process data rows
-                for row in rows[1:]:
-                    cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
-                    if len(cells) < len(headers):
-                        continue
-                    
-                    # Map cells to property data
-                    property_data = self._parse_public_works_property(headers, cells)
-                    if property_data:
-                        properties.append(property_data)
+                if 'struck' in text and '.pdf' in href.lower():
+                    pdf_url = href
+                    if not pdf_url.startswith('http'):
+                        pdf_url = 'https://www.dallascounty.org' + pdf_url
+                    break
             
-            logger.info(f"Found {len(properties)} properties from Public Works")
+            if not pdf_url:
+                # Fallback to known URL
+                pdf_url = "https://www.dallascounty.org/Assets/uploads/docs/public-works/StruckListWorking_2024_Inventory-Post-2025-2.pdf"
+            
+            logger.info(f"Downloading PDF from: {pdf_url}")
+            
+            # Download and parse PDF
+            properties = self._parse_struck_off_pdf(pdf_url)
+            
+            logger.info(f"Found {len(properties)} properties from Public Works PDF")
             return properties
             
         except Exception as e:
-            logger.error(f"Error fetching from Public Works: {str(e)}")
+            logger.error(f"Error fetching from Public Works PDF: {str(e)}")
             return []
     
     def _fetch_from_county_clerk(self) -> List[Dict[str, Any]]:
@@ -158,6 +157,155 @@ class LGBSDallasScraper(BaseTaxSaleScraper):
         except Exception as e:
             logger.error(f"Error fetching from County Clerk: {str(e)}")
             return []
+    
+    def _parse_struck_off_pdf(self, pdf_url: str) -> List[Dict[str, Any]]:
+        """Download and parse the struck-off properties PDF"""
+        try:
+            # Download PDF
+            response = self.session.get(pdf_url, timeout=30)
+            if response.status_code != 200:
+                logger.error(f"Failed to download PDF: {response.status_code}")
+                return []
+            
+            pdf_file = io.BytesIO(response.content)
+            properties = []
+            
+            with pdfplumber.open(pdf_file) as pdf:
+                for page in pdf.pages:
+                    # Extract tables from each page
+                    tables = page.extract_tables()
+                    
+                    for table in tables:
+                        if len(table) < 2:  # Need header + data
+                            continue
+                        
+                        # Find the header row (might not be the first row)
+                        header_row_idx = None
+                        for i, row in enumerate(table):
+                            if row and any(cell and 'PROPERTY ADDRESS' in str(cell).upper() for cell in row):
+                                header_row_idx = i
+                                break
+                        
+                        if header_row_idx is None:
+                            continue
+                        
+                        headers = [str(cell).strip() if cell else '' for cell in table[header_row_idx]]
+                        
+                        # Process data rows
+                        for row in table[header_row_idx + 1:]:
+                            if not row or not any(row):  # Skip empty rows
+                                continue
+                                
+                            cells = [str(cell).strip() if cell else '' for cell in row]
+                            
+                            # Parse property data
+                            property_data = self._parse_pdf_property_row(headers, cells)
+                            if property_data:
+                                properties.append(property_data)
+            
+            return properties
+            
+        except Exception as e:
+            logger.error(f"Error parsing struck-off PDF: {str(e)}")
+            return []
+    
+    def _parse_pdf_property_row(self, headers: List[str], cells: List[str]) -> Dict[str, Any]:
+        """Parse a property row from the PDF table"""
+        try:
+            # Initialize property data
+            property_data = {
+                'id': f'DC-{hash(str(cells))}',
+                'parcel_id': '',
+                'account_number': '',
+                'owner_name': 'Unknown Owner',
+                'property_address': '',
+                'city': 'Dallas',
+                'state': 'TX',
+                'zip': '',
+                'legal_description': '',
+                'sale_date': '2025-02-04',  # First Tuesday of February
+                'sale_type': 'STRUCK OFF',
+                'precinct': '',
+                'sale_number': '2025-001',
+                'minimum_bid': 0,
+                'judgment_amount': 0,
+                'adjudged_value': 0,
+                'assessed_value': 0,
+                'taxes_owed': 0,
+                'years_owed': 1,
+                'latitude': 32.7767,
+                'longitude': -96.7970,
+                'property_type': 'Unknown',
+                'year_built': None,
+                'lot_size': 0,
+                'building_sqft': None,
+            }
+            
+            # Map columns to property data
+            for i, header in enumerate(headers):
+                if i >= len(cells) or not cells[i]:
+                    continue
+                
+                header = header.upper().strip()
+                cell_value = cells[i].strip()
+                
+                if not cell_value:
+                    continue
+                
+                # Map PDF columns to property fields
+                if 'PROPERTY ADDRESS' in header:
+                    property_data['property_address'] = cell_value
+                elif 'CITY' in header:
+                    property_data['city'] = cell_value
+                elif 'DCAD' in header and 'TAX ACC' in header:
+                    property_data['parcel_id'] = cell_value
+                    property_data['account_number'] = cell_value
+                elif 'LEGAL DESCRIPTION' in header:
+                    property_data['legal_description'] = cell_value
+                elif 'DCAD Value' in header or '2024 DCAD' in header:
+                    try:
+                        # Extract numeric value from DCAD assessment
+                        clean_value = re.sub(r'[^\d.]', '', cell_value)
+                        if clean_value:
+                            property_data['assessed_value'] = float(clean_value)
+                    except:
+                        pass
+                elif 'MINIMUM BID' in header:
+                    try:
+                        # Extract numeric value from minimum bid
+                        clean_value = re.sub(r'[^\d.]', '', cell_value)
+                        if clean_value:
+                            property_data['minimum_bid'] = float(clean_value)
+                    except:
+                        pass
+                elif 'IMPROVED' in header or 'LAND ONLY' in header:
+                    if 'IMPROVED' in cell_value.upper():
+                        property_data['property_type'] = 'Improved'
+                    elif 'LAND' in cell_value.upper():
+                        property_data['property_type'] = 'Land'
+                elif 'APPROX LAND SIZE' in header:
+                    try:
+                        # Extract numeric value from land size
+                        numbers = re.findall(r'[\d.]+', cell_value)
+                        if numbers:
+                            property_data['lot_size'] = float(numbers[0])
+                    except:
+                        pass
+                elif 'R&B DISTRICT' in header:
+                    property_data['precinct'] = cell_value
+                elif 'CAUSE' in header and 'JUDGMENT' in header:
+                    # This might contain case number and date
+                    property_data['case_number'] = cell_value
+            
+            # Only return if we have essential data
+            if property_data['property_address'] or property_data['parcel_id']:
+                return property_data
+                
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error parsing PDF property row: {str(e)}")
+            return None
     
     def _parse_public_works_property(self, headers: List[str], cells: List[str]) -> Dict[str, Any]:
         """Parse property data from Public Works table row"""
