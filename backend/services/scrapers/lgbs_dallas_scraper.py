@@ -1,14 +1,16 @@
 """
-LGBS Dallas County Tax Sales Scraper
-Scrapes tax sale properties from taxsales.lgbs.com
+Dallas County Tax Sales Scraper
+Scrapes tax sale properties from Dallas County official sources
 """
 import json
 import logging
 import time
+import re
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import requests
 from urllib.parse import urlencode, quote
+from bs4 import BeautifulSoup
 
 from .base_scraper import BaseTaxSaleScraper
 
@@ -16,51 +18,26 @@ logger = logging.getLogger(__name__)
 
 
 class LGBSDallasScraper(BaseTaxSaleScraper):
-    """Scraper for Dallas County tax sales from LGBS system"""
+    """Scraper for Dallas County tax sales from official Dallas County sources"""
     
     def __init__(self):
         super().__init__(
             county_name="Dallas County",
-            base_url="https://taxsales.lgbs.com"
+            base_url="https://www.dallascounty.org"
         )
-        self.api_base = "https://taxsales.lgbs.com/api"
         self.county = "DALLAS COUNTY"
         self.state = "TX"
         
     def scrape_upcoming_sales(self) -> List[Dict[str, Any]]:
-        """Scrape tax sale properties from LGBS Dallas County"""
+        """Scrape tax sale properties from Dallas County official sources"""
         all_properties = []
         
         try:
-            self.update_progress(10, "Connecting to LGBS tax sales system...")
+            self.update_progress(10, "Connecting to Dallas County tax sales system...")
             
-            # Get properties in batches
-            offset = 0
-            batch_size = 100
-            total_properties = 0
-            
-            while True:
-                self.update_progress(
-                    20 + min(60, offset // 10),
-                    f"Fetching properties... (found {total_properties} so far)"
-                )
-                
-                properties = self._fetch_property_batch(offset, batch_size)
-                
-                if not properties:
-                    break
-                
-                all_properties.extend(properties)
-                total_properties = len(all_properties)
-                offset += batch_size
-                
-                # Rate limiting
-                time.sleep(1)
-                
-                # Limit for testing
-                if total_properties >= 500:
-                    logger.info(f"Reached limit of 500 properties for testing")
-                    break
+            # Fetch all properties from official sources
+            all_properties = self._fetch_property_batch(0, 1000)  # Get all available
+            total_properties = len(all_properties)
             
             self.update_progress(80, f"Processing {total_properties} properties...")
             
@@ -87,93 +64,171 @@ class LGBSDallasScraper(BaseTaxSaleScraper):
             raise
     
     def _fetch_property_batch(self, offset: int, limit: int) -> List[Dict[str, Any]]:
-        """Fetch a batch of properties from the API"""
+        """Fetch a batch of properties from Dallas County official sources"""
         try:
-            # Build query parameters based on the URL structure
-            params = {
-                'offset': offset,
-                'limit': limit,
-                'ordering': 'precinct,sale_nbr,uid',
-                'sale_type': 'SALE,RESALE,STRUCK OFF,FUTURE SALE',
-                'county': self.county,
-                'state': self.state,
-                'format': 'json'
-            }
+            # First try Dallas County Public Works (struck-off properties)
+            properties = self._fetch_from_public_works()
             
-            # Try different API endpoints
-            endpoints = [
-                f"{self.api_base}/properties",
-                f"{self.api_base}/sales",
-                f"{self.base_url}/properties.json",
-                f"{self.base_url}/api/v1/properties"
-            ]
+            # If we got data, return a slice based on offset/limit
+            if properties:
+                start = offset
+                end = offset + limit
+                return properties[start:end]
             
-            for endpoint in endpoints:
-                try:
-                    response = self.session.get(
-                        endpoint,
-                        params=params,
-                        timeout=30
-                    )
-                    
-                    if response.status_code == 200:
-                        data = response.json()
-                        
-                        # Handle different response structures
-                        if isinstance(data, list):
-                            return data
-                        elif isinstance(data, dict):
-                            if 'results' in data:
-                                return data['results']
-                            elif 'properties' in data:
-                                return data['properties']
-                            elif 'data' in data:
-                                return data['data']
-                    
-                except Exception as e:
-                    logger.debug(f"Failed to fetch from {endpoint}: {str(e)}")
-                    continue
+            # Fallback: Try Dallas County Clerk foreclosure notices
+            properties = self._fetch_from_county_clerk()
+            if properties:
+                start = offset
+                end = offset + limit
+                return properties[start:end]
             
-            # Fallback: Parse from map data
-            return self._fetch_from_map_api(offset, limit)
+            # If no real data available, return empty list (no more mock data)
+            logger.warning("No real property data available from Dallas County sources")
+            return []
             
         except Exception as e:
             logger.error(f"Error fetching property batch: {str(e)}")
             return []
     
-    def _fetch_from_map_api(self, offset: int, limit: int) -> List[Dict[str, Any]]:
-        """Fetch properties using map API endpoint"""
+    def _fetch_from_public_works(self) -> List[Dict[str, Any]]:
+        """Fetch struck-off properties from Dallas County Public Works"""
         try:
-            # Build bbox for Dallas County
-            bbox = "-97.46676258984374,32.095513162615156,-96.08797841015624,33.43501765917087"
-            
-            params = {
-                'lat': '32.76778495242472',
-                'lon': '-96.77737049999999',
-                'zoom': '10',
-                'offset': offset,
-                'ordering': 'precinct,sale_nbr,uid',
-                'sale_type': 'SALE,RESALE,STRUCK OFF,FUTURE SALE',
-                'county': self.county,
-                'state': self.state,
-                'in_bbox': bbox
-            }
-            
+            logger.info("Fetching properties from Dallas County Public Works")
             response = self.session.get(
-                f"{self.base_url}/map",
-                params=params,
+                "https://www.dallascounty.org/departments/pubworks/property-division.php",
                 timeout=30
             )
             
-            if response.status_code == 200:
-                # Extract property data from HTML/JavaScript
-                return self._extract_properties_from_html(response.text)
+            if response.status_code != 200:
+                return []
             
+            soup = BeautifulSoup(response.content, 'html.parser')
+            properties = []
+            
+            # Look for property tables
+            tables = soup.find_all('table')
+            for table in tables:
+                rows = table.find_all('tr')
+                if len(rows) < 2:  # Need header + data
+                    continue
+                
+                # Get headers
+                header_row = rows[0]
+                headers = [th.get_text(strip=True).lower() for th in header_row.find_all(['th', 'td'])]
+                
+                # Check if this looks like a property table
+                if not any(word in ' '.join(headers) for word in ['property', 'address', 'parcel', 'bid']):
+                    continue
+                
+                # Process data rows
+                for row in rows[1:]:
+                    cells = [td.get_text(strip=True) for td in row.find_all(['td', 'th'])]
+                    if len(cells) < len(headers):
+                        continue
+                    
+                    # Map cells to property data
+                    property_data = self._parse_public_works_property(headers, cells)
+                    if property_data:
+                        properties.append(property_data)
+            
+            logger.info(f"Found {len(properties)} properties from Public Works")
+            return properties
+            
+        except Exception as e:
+            logger.error(f"Error fetching from Public Works: {str(e)}")
+            return []
+    
+    def _fetch_from_county_clerk(self) -> List[Dict[str, Any]]:
+        """Fetch foreclosure notices from Dallas County Clerk"""
+        try:
+            logger.info("Fetching foreclosure notices from Dallas County Clerk")
+            response = self.session.get(
+                "https://www.dallascounty.org/government/county-clerk/recording/foreclosures.php",
+                timeout=30
+            )
+            
+            if response.status_code != 200:
+                return []
+            
+            # For now, return empty as this requires additional parsing
+            # This would need to be implemented to parse the foreclosure notice system
+            logger.info("County Clerk foreclosure system needs additional implementation")
             return []
             
         except Exception as e:
-            logger.error(f"Error fetching from map API: {str(e)}")
+            logger.error(f"Error fetching from County Clerk: {str(e)}")
             return []
+    
+    def _parse_public_works_property(self, headers: List[str], cells: List[str]) -> Dict[str, Any]:
+        """Parse property data from Public Works table row"""
+        try:
+            property_data = {
+                'id': f'PW-{hash(str(cells))}',
+                'parcel_id': '',
+                'account_number': '',
+                'owner_name': 'Unknown',
+                'property_address': '',
+                'city': 'Dallas',
+                'state': 'TX',
+                'zip': '',
+                'legal_description': '',
+                'sale_date': '2025-02-04',  # First Tuesday of month
+                'sale_type': 'STRUCK OFF',
+                'precinct': '',
+                'sale_number': '2025-001',
+                'minimum_bid': 0,
+                'judgment_amount': 0,
+                'adjudged_value': 0,
+                'assessed_value': 0,
+                'taxes_owed': 0,
+                'years_owed': 1,
+                'latitude': 32.7767,
+                'longitude': -96.7970,
+                'property_type': 'Unknown',
+                'year_built': None,
+                'lot_size': 0,
+                'building_sqft': None,
+            }
+            
+            # Map table columns to property fields
+            for i, header in enumerate(headers):
+                if i >= len(cells):
+                    break
+                
+                cell_value = cells[i].strip()
+                if not cell_value:
+                    continue
+                
+                # Map common column headers to property fields
+                if 'address' in header:
+                    property_data['property_address'] = cell_value
+                elif 'parcel' in header or 'account' in header:
+                    property_data['parcel_id'] = cell_value
+                elif 'owner' in header:
+                    property_data['owner_name'] = cell_value
+                elif 'bid' in header or 'price' in header:
+                    try:
+                        # Extract numeric value
+                        import re
+                        numbers = re.findall(r'[\d,]+\.?\d*', cell_value)
+                        if numbers:
+                            property_data['minimum_bid'] = float(numbers[0].replace(',', ''))
+                    except:
+                        pass
+                elif 'legal' in header or 'description' in header:
+                    property_data['legal_description'] = cell_value
+                elif 'type' in header:
+                    property_data['property_type'] = cell_value
+            
+            # Only return if we have essential data
+            if property_data['property_address'] or property_data['parcel_id']:
+                return property_data
+                
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error parsing Public Works property: {str(e)}")
+            return None
     
     def _extract_properties_from_html(self, html: str) -> List[Dict[str, Any]]:
         """Extract property data from HTML response"""
@@ -203,55 +258,15 @@ class LGBSDallasScraper(BaseTaxSaleScraper):
                     except json.JSONDecodeError:
                         continue
             
-            # If no JSON found, create mock data for testing
+            # If no JSON found, properties remain empty
             if not properties:
-                logger.info("Using mock data for LGBS scraper development")
-                properties = self._generate_mock_properties(20)
+                logger.warning("No embedded property data found in HTML")
             
         except Exception as e:
             logger.error(f"Error extracting properties from HTML: {str(e)}")
         
         return properties
     
-    def _generate_mock_properties(self, count: int) -> List[Dict[str, Any]]:
-        """Generate mock properties for testing"""
-        from faker import Faker
-        import random
-        
-        fake = Faker()
-        properties = []
-        
-        for i in range(count):
-            property_data = {
-                'id': f'LGBS-{i+1000}',
-                'parcel_id': f'DAL-{fake.random_number(digits=10)}',
-                'account_number': fake.random_number(digits=12),
-                'owner_name': fake.name(),
-                'property_address': fake.street_address(),
-                'city': fake.city(),
-                'state': 'TX',
-                'zip': fake.zipcode()[:5],
-                'legal_description': f'Lot {random.randint(1, 100)}, Block {random.randint(1, 20)}',
-                'sale_date': fake.date_between(start_date='+30d', end_date='+90d').isoformat(),
-                'sale_type': random.choice(['SALE', 'RESALE', 'STRUCK OFF']),
-                'precinct': str(random.randint(1, 4)),
-                'sale_number': f'2025-{random.randint(1000, 9999)}',
-                'minimum_bid': round(random.uniform(1000, 50000), 2),
-                'judgment_amount': round(random.uniform(5000, 100000), 2),
-                'adjudged_value': round(random.uniform(50000, 500000), 2),
-                'assessed_value': round(random.uniform(50000, 500000), 2),
-                'taxes_owed': round(random.uniform(1000, 20000), 2),
-                'years_owed': random.randint(1, 5),
-                'latitude': 32.7767 + random.uniform(-0.5, 0.5),
-                'longitude': -96.7970 + random.uniform(-0.5, 0.5),
-                'property_type': random.choice(['Single Family', 'Condo', 'Vacant Land', 'Commercial']),
-                'year_built': random.randint(1950, 2020) if random.random() > 0.3 else None,
-                'lot_size': random.randint(5000, 43560),
-                'building_sqft': random.randint(800, 5000) if random.random() > 0.3 else None,
-            }
-            properties.append(property_data)
-        
-        return properties
     
     def _group_properties_by_sale(self, properties: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
         """Group properties by sale date"""
