@@ -319,6 +319,33 @@ class LGBSDallasScraper(BaseTaxSaleScraper):
         
         return formatted_sales
     
+    def parse_property_details(self, property_data: Any) -> Dict[str, Any]:
+        """Parse property details from LGBS API response"""
+        if isinstance(property_data, dict):
+            return {
+                'parcel_number': property_data.get('parcel_id', property_data.get('account_number', '')),
+                'owner_name': property_data.get('owner_name', ''),
+                'property_address': property_data.get('property_address', ''),
+                'city': property_data.get('city', ''),
+                'state': property_data.get('state', 'TX'),
+                'zip_code': property_data.get('zip', ''),
+                'legal_description': property_data.get('legal_description', ''),
+                'property_type': property_data.get('property_type', 'Unknown'),
+                'year_built': property_data.get('year_built'),
+                'lot_size': property_data.get('lot_size'),
+                'building_sqft': property_data.get('building_sqft'),
+                'assessed_value': property_data.get('assessed_value', 0),
+                'market_value': property_data.get('adjudged_value', property_data.get('assessed_value', 0)),
+                'latitude': property_data.get('latitude'),
+                'longitude': property_data.get('longitude'),
+                'taxes_owed': property_data.get('taxes_owed', 0),
+                'minimum_bid': property_data.get('minimum_bid', 0),
+                'sale_type': property_data.get('sale_type', 'SALE'),
+                'precinct': property_data.get('precinct', ''),
+                'case_number': property_data.get('case_number', ''),
+            }
+        return {}
+    
     def update_progress(self, progress: int, message: str, properties_found: int = 0, sales_found: int = 0):
         """Update scraping progress"""
         if hasattr(self, 'progress_callback') and self.progress_callback:
