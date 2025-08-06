@@ -106,24 +106,19 @@ class ScraperService:
     def _get_or_create_county(self, county_code: str, county_name: str) -> County:
         """Get or create county record"""
         county = self.db.query(County).filter(
-            County.county_name == county_name
+            County.name == county_name
         ).first()
         
         if not county:
             county = County(
-                county_name=county_name,
-                county_state='TX',
+                name=county_name,
+                state='TX',
                 auction_location=f"{county_name} Courthouse" if 'collin' in county_code.lower() else 'Online',
                 auction_type='in_person' if 'collin' in county_code.lower() else 'online',
-                auction_frequency='monthly',
-                redemption_period_months=6,
-                penalty_rate=25.0,
-                typical_auction_day='First Tuesday',
-                typical_auction_time='10:00 AM',
-                registration_required=True,
-                deposit_required=True if 'dallas' in county_code.lower() else False,
-                deposit_amount=5000.0 if 'dallas' in county_code.lower() else 0,
-                website_url='https://www.collincountytx.gov' if 'collin' in county_code.lower() else 'https://www.realauction.com'
+                auction_schedule='First Tuesday of each month',
+                website_url='https://www.collincountytx.gov' if 'collin' in county_code.lower() else 'https://www.realauction.com',
+                contact_info='',
+                special_procedures=''
             )
             self.db.add(county)
             self.db.commit()
@@ -194,9 +189,9 @@ class ScraperService:
                 county_id=county.id,
                 property_type=prop_data.get('property_type', 'residential'),
                 legal_description=prop_data.get('legal_description', ''),
-                property_city=self._extract_city(prop_data.get('property_address', '')),
-                property_zip=self._extract_zip(prop_data.get('property_address', '')),
-                tax_rate=0.02,  # Default Texas tax rate
+                city=self._extract_city(prop_data.get('property_address', '')),
+                zip_code=self._extract_zip(prop_data.get('property_address', '')),
+                state='TX',
                 homestead_exemption=False,  # Would need to verify
                 agricultural_exemption=False,
                 senior_exemption=False
@@ -346,7 +341,7 @@ class ScraperService:
             recent_properties = self.db.query(Property).join(
                 County
             ).filter(
-                County.county_name.ilike(f'%{county_code}%'),
+                County.name.ilike(f'%{county_code}%'),
                 Property.created_at >= datetime.utcnow() - timedelta(hours=1)
             ).limit(50).all()
             

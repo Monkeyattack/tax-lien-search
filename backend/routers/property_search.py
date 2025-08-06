@@ -308,7 +308,7 @@ def get_filter_options(
     """Get available filter options based on data in database"""
     
     # Get counties
-    counties = db.query(County.id, County.county_name).all()
+    counties = db.query(County.id, County.name).all()
     
     # Get unique cities
     cities = db.query(Property.city).distinct().filter(Property.city.isnot(None)).all()
