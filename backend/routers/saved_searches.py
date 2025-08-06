@@ -21,7 +21,7 @@ class SavedSearchBase(BaseModel):
     description: Optional[str] = None
     filters: Dict[str, Any] = Field(default_factory=dict)
     email_alerts: bool = True
-    alert_frequency: str = Field(default="daily", regex="^(instant|daily|weekly)$")
+    alert_frequency: str = Field(default="daily", pattern="^(instant|daily|weekly)$")
 
 class SavedSearchCreate(SavedSearchBase):
     pass
@@ -31,7 +31,7 @@ class SavedSearchUpdate(BaseModel):
     description: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None
     email_alerts: Optional[bool] = None
-    alert_frequency: Optional[str] = Field(None, regex="^(instant|daily|weekly)$")
+    alert_frequency: Optional[str] = Field(None, pattern="^(instant|daily|weekly)$")
     is_active: Optional[bool] = None
 
 class SavedSearchResponse(SavedSearchBase):
