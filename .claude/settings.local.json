@@ -15,7 +15,8 @@
       "Bash(git add:*)",
       "WebFetch(domain:taxsales.lgbs.com)",
       "Bash(python:*)",
-      "Bash(venvScriptspython.exe test_lgbs_api.py)"
+      "Bash(venvScriptspython.exe test_lgbs_api.py)",
+      "WebFetch(domain:tax.profithits.app)"
     ],
     "deny": []
   }

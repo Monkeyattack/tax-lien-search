@@ -19,7 +19,7 @@ class PropertyEnrichmentService:
     """Service to enrich property data with external sources"""
     
     def __init__(self):
-        self.google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', '')
+        self.google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyClDyNdQritdtXYGDbCi_sFJFpQrhx5TRw')
         self.zillow_scraper = ZillowPublicScraper()
         
         # Initialize session with retry logic
@@ -31,6 +31,12 @@ class PropertyEnrichmentService:
         # Cache for API responses
         self._cache = {}
         self._cache_ttl = 86400  # 24 hours
+        
+        # Log API key status
+        if self.google_maps_api_key:
+            logger.info(f"Google Maps API key configured: {self.google_maps_api_key[:10]}...")
+        else:
+            logger.warning("No Google Maps API key configured")
     
     def enrich_property(self, property_data: Dict[str, Any]) -> Dict[str, Any]:
         """Enrich a single property with data from multiple sources"""
@@ -61,6 +67,19 @@ class PropertyEnrichmentService:
                 )
                 if neighborhood_data:
                     enriched['neighborhood_data'] = neighborhood_data
+                
+                # Generate Street View URL
+                enriched['street_view_url'] = self._get_street_view_url(
+                    enriched['latitude'],
+                    enriched['longitude']
+                )
+                
+                # Generate Maps URL
+                enriched['google_maps_url'] = self._get_google_maps_url(
+                    enriched['latitude'],
+                    enriched['longitude'],
+                    enriched.get('property_address', '')
+                )
             
             # Get property details from county records
             county_data = self._get_county_property_data(enriched)
@@ -396,6 +415,68 @@ class PropertyEnrichmentService:
             logger.error(f"Error calculating investment score: {str(e)}")
         
         return round(score, 1)
+    
+    def _get_street_view_url(self, lat: float, lng: float) -> str:
+        """Generate Google Street View URL for property"""
+        base_url = "https://maps.googleapis.com/maps/api/streetview"
+        params = {
+            'size': '640x480',
+            'location': f"{lat},{lng}",
+            'fov': 90,
+            'pitch': 0,
+            'key': self.google_maps_api_key
+        }
+        # Return the URL that can be used in img tags
+        return f"{base_url}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
+    
+    def _get_google_maps_url(self, lat: float, lng: float, address: str = "") -> str:
+        """Generate Google Maps URL for property"""
+        if address:
+            # Use address for more accurate results
+            from urllib.parse import quote
+            return f"https://www.google.com/maps/search/?api=1&query={quote(address)}"
+        else:
+            # Use coordinates
+            return f"https://www.google.com/maps/search/?api=1&query={lat},{lng}"
+    
+    def _get_nearby_schools(self, lat: float, lng: float) -> List[Dict[str, Any]]:
+        """Get nearby schools with ratings using Google Places API"""
+        if not self.google_maps_api_key:
+            return []
+        
+        try:
+            url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
+            params = {
+                'location': f"{lat},{lng}",
+                'radius': 3000,  # 3km radius
+                'type': 'school',
+                'key': self.google_maps_api_key
+            }
+            
+            response = self.session.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if data['status'] == 'OK':
+                    schools = []
+                    for place in data['results'][:5]:  # Top 5 schools
+                        school = {
+                            'name': place['name'],
+                            'rating': place.get('rating', 0),
+                            'total_ratings': place.get('user_ratings_total', 0),
+                            'distance_miles': round(self._calculate_distance(
+                                lat, lng,
+                                place['geometry']['location']['lat'],
+                                place['geometry']['location']['lng']
+                            ), 1),
+                            'types': place.get('types', []),
+                            'place_id': place.get('place_id')
+                        }
+                        schools.append(school)
+                    return sorted(schools, key=lambda x: x['distance_miles'])
+        except Exception as e:
+            logger.error(f"Error getting nearby schools: {str(e)}")
+        
+        return []
     
     def _calculate_distance(self, lat1: float, lon1: float, lat2: float, lon2: float) -> float:
         """Calculate distance between two coordinates in miles"""

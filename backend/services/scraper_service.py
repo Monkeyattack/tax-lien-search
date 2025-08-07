@@ -314,6 +314,12 @@ class ScraperService:
             if zillow_data.get('neighborhood_info'):
                 neighborhood_data.update(zillow_data['neighborhood_info'])
             
+            # Add Google Maps URLs if available
+            if enriched_data.get('street_view_url'):
+                neighborhood_data['street_view_url'] = enriched_data['street_view_url']
+            if enriched_data.get('google_maps_url'):
+                neighborhood_data['google_maps_url'] = enriched_data['google_maps_url']
+            
             enrichment.neighborhood_data = neighborhood_data
             
             # Calculate investment metrics
