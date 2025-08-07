@@ -25,7 +25,8 @@ class PropertyEnrichmentService:
         # Initialize session with retry logic
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'X-Forwarded-For': '172.93.51.42'  # Add server IP as forwarded header
         })
         
         # Cache for API responses
