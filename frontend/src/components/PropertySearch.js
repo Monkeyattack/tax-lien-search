@@ -380,8 +380,8 @@ const PropertySearch = ({ onPropertySelect }) => {
                 
                 return (
                   <div key={property.id} className="relative">
-                    {/* Selection Checkbox for Comparison */}
-                    <div className="absolute top-4 left-4 z-10">
+                    {/* Selection Checkbox for Comparison - moved to top right */}
+                    <div className="absolute top-4 right-4 z-10">
                       <input
                         type="checkbox"
                         checked={!!isSelected}
@@ -389,7 +389,7 @@ const PropertySearch = ({ onPropertySelect }) => {
                           e.stopPropagation();
                           toggleComparisonSelect(property);
                         }}
-                        className="h-5 w-5 text-tax-primary focus:ring-tax-primary border-gray-300 rounded shadow-sm bg-white"
+                        className="h-5 w-5 text-tax-primary focus:ring-tax-primary border-gray-300 rounded shadow-sm bg-white cursor-pointer"
                         title="Select for comparison"
                       />
                     </div>

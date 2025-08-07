@@ -23,6 +23,7 @@ import Alerts from './pages/Alerts';
 import Profile from './pages/Profile';
 import DataImport from './pages/DataImport';
 import AuthCallback from './pages/AuthCallback';
+import InvestmentScoreExplanation from './components/InvestmentScoreExplanation';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +61,7 @@ function App() {
                 <Route path="saved-searches" element={<SavedSearches />} />
                 <Route path="investments" element={<Investments />} />
                 <Route path="investments/:id" element={<InvestmentDetail />} />
+                <Route path="investment-score-explanation" element={<InvestmentScoreExplanation />} />
                 <Route path="counties" element={<Counties />} />
                 <Route path="alerts" element={<Alerts />} />
                 <Route path="profile" element={<Profile />} />

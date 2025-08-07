@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   HomeIcon,
   MapPinIcon,
@@ -7,9 +8,12 @@ import {
   StarIcon,
   BuildingOfficeIcon,
   ClockIcon,
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 
 const PropertyCard = ({ property, onSelect, isSelected, onCompare }) => {
+  const navigate = useNavigate();
+  
   const formatCurrency = (value) => {
     if (!value) return 'N/A';
     return new Intl.NumberFormat('en-US', {
@@ -71,28 +75,39 @@ const PropertyCard = ({ property, onSelect, isSelected, onCompare }) => {
             </div>
           </div>
           
-          {/* Investment Score Badge */}
+          {/* Investment Score Badge - Clickable */}
           {property.investment_score && (
-            <div className={`px-3 py-1 rounded-full text-sm font-bold ${getInvestmentScoreColor(property.investment_score)}`}>
+            <div 
+              className={`px-3 py-1 rounded-full text-sm font-bold cursor-pointer hover:opacity-80 transition-opacity flex items-center ${getInvestmentScoreColor(property.investment_score)}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate('/investment-score-explanation');
+              }}
+              title="Click to learn about investment scores"
+            >
               {Math.round(property.investment_score)}
+              <InformationCircleIcon className="h-4 w-4 ml-1" />
             </div>
           )}
         </div>
 
-        {/* Property Image Placeholder */}
-        {property.property_images && property.property_images.length > 0 ? (
-          <div className="relative mb-4 h-48 bg-gray-200 rounded-lg overflow-hidden">
+        {/* Property Image Placeholder - Clickable */}
+        <div 
+          className="relative mb-4 h-48 bg-gray-100 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+          onClick={() => onSelect && onSelect(property)}
+        >
+          {property.property_images && property.property_images.length > 0 ? (
             <img
               src={property.property_images[0]}
               alt={property.property_address}
               className="w-full h-full object-cover"
             />
-          </div>
-        ) : (
-          <div className="relative mb-4 h-48 bg-gray-100 rounded-lg flex items-center justify-center">
-            <HomeIcon className="h-12 w-12 text-gray-400" />
-          </div>
-        )}
+          ) : (
+            <div className="h-full flex items-center justify-center">
+              <HomeIcon className="h-12 w-12 text-gray-400" />
+            </div>
+          )}
+        </div>
 
         {/* Key Property Details Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">

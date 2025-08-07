@@ -11,6 +11,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from .zillow_public_scraper import ZillowPublicScraper
+from .free_data_sources import FreeDataSourcesEnrichment
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class PropertyEnrichmentService:
     def __init__(self):
         self.google_maps_api_key = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyClDyNdQritdtXYGDbCi_sFJFpQrhx5TRw')
         self.zillow_scraper = ZillowPublicScraper()
+        self.free_data_enricher = FreeDataSourcesEnrichment()
         
         # Initialize session with retry logic
         self.session = requests.Session()
@@ -87,7 +89,10 @@ class PropertyEnrichmentService:
             if county_data:
                 enriched['county_data'] = county_data
             
-            # Calculate investment metrics
+            # Enrich with free public data sources
+            enriched = self.free_data_enricher.enrich_property_with_free_data(enriched)
+            
+            # Calculate investment metrics (after all enrichment)
             enriched['investment_metrics'] = self._calculate_investment_metrics(enriched)
             
             # Add enrichment metadata
@@ -383,11 +388,12 @@ class PropertyEnrichmentService:
             return {}
     
     def _calculate_investment_score(self, property_data: Dict[str, Any]) -> float:
-        """Calculate an investment score from 0-100"""
+        """Calculate an investment score from 0-100 using all available data"""
         score = 50.0  # Base score
         
         try:
             metrics = property_data.get('investment_metrics', {})
+            public_data = property_data.get('public_data', {})
             
             # ROI factor (up to 30 points)
             roi = metrics.get('roi_percentage', 0)
@@ -398,22 +404,58 @@ class PropertyEnrichmentService:
             elif roi > 25:
                 score += 10
             
-            # Location factor (up to 20 points)
+            # Location & Crime factor (up to 20 points)
             neighborhood = property_data.get('neighborhood_data', {})
+            crime_data = public_data.get('crime', {})
+            
             if neighborhood:
                 if neighborhood.get('demographics', {}).get('crime_rate') == 'Low':
                     score += 10
                 if neighborhood.get('demographics', {}).get('school_rating', 0) > 7:
                     score += 10
+            elif crime_data:
+                safety_score = crime_data.get('safety_score', 50)
+                score += (safety_score / 100) * 20
             
-            # Property condition (estimated, up to 20 points)
+            # School Quality (up to 10 points)
+            school_data = public_data.get('schools', {})
+            if school_data:
+                avg_rating = school_data.get('avg_school_rating', 5)
+                score += (avg_rating / 10) * 10
+            
+            # Property condition (up to 10 points)
             year_built = property_data.get('year_built', 0)
             if year_built > 2000:
-                score += 20
-            elif year_built > 1980:
                 score += 10
+            elif year_built > 1980:
+                score += 5
             
-            # Cap any score at 100
+            # Market Trends (up to 10 points)
+            market_data = public_data.get('market_trends', {})
+            if market_data:
+                price_change = market_data.get('price_change_1yr', 0)
+                if price_change > 10:
+                    score += 10
+                elif price_change > 5:
+                    score += 7
+                elif price_change > 0:
+                    score += 5
+            
+            # Environmental & Risk Factors (can reduce score)
+            flood_risk = public_data.get('flood_risk', {})
+            if flood_risk.get('flood_risk_score', 0) > 5:
+                score -= 10
+            
+            disaster_risk = public_data.get('disaster_risk', {})
+            if disaster_risk.get('overall_risk_score', 0) > 7:
+                score -= 5
+            
+            # Walkability bonus (up to 5 points)
+            walkability = public_data.get('walkability', {})
+            if walkability.get('walk_score', 0) > 70:
+                score += 5
+            
+            # Cap any score at 100 and floor at 0
             score = min(100, max(0, score))
             
         except Exception as e:
@@ -509,7 +551,21 @@ class PropertyEnrichmentService:
         if property_data.get('latitude'):
             sources.append('Geocoding')
         
-        return sources
+        # Add public data sources
+        public_data = property_data.get('public_data', {})
+        if public_data:
+            public_sources = public_data.get('sources', [])
+            sources.extend(public_sources)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_sources = []
+        for source in sources:
+            if source not in seen:
+                seen.add(source)
+                unique_sources.append(source)
+        
+        return unique_sources
     
     def _calculate_data_quality_score(self, property_data: Dict[str, Any]) -> float:
         """Calculate data quality score based on completeness"""
