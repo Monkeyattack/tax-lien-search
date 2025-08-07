@@ -173,7 +173,7 @@ class ScraperService:
         return properties_imported
     
     def _get_or_create_property(self, prop_data: Dict, county: County) -> Property:
-        """Get or create property record"""
+        """Get or create property record and enrich with Zillow data"""
         parcel_number = prop_data.get('parcel_number', '')
         
         # First check if property exists with this parcel number (unique constraint)
@@ -181,6 +181,7 @@ class ScraperService:
             Property.parcel_number == parcel_number
         ).first()
         
+        is_new_property = False
         if not property:
             # Create new property
             property = Property(
@@ -199,6 +200,7 @@ class ScraperService:
             )
             self.db.add(property)
             self.db.flush()  # Get ID without committing
+            is_new_property = True
         else:
             # Update existing property with new information if needed
             if prop_data.get('property_address') and not property.property_address:
@@ -210,6 +212,10 @@ class ScraperService:
             # Update county_id if different
             if property.county_id != county.id:
                 property.county_id = county.id
+        
+        # Enrich property if it's new or hasn't been enriched yet
+        if is_new_property or not self._has_enrichment(property):
+            self._enrich_property(property)
             
         return property
     
@@ -227,6 +233,110 @@ class ScraperService:
         zip_pattern = r'\b\d{5}(?:-\d{4})?\b'
         match = re.search(zip_pattern, address)
         return match.group(0) if match else ''
+    
+    def _has_enrichment(self, property: Property) -> bool:
+        """Check if property has enrichment data"""
+        enrichment = self.db.query(PropertyEnrichment).filter(
+            PropertyEnrichment.property_id == property.id
+        ).first()
+        return enrichment is not None
+    
+    def _enrich_property(self, property: Property):
+        """Enrich property with Zillow and other external data"""
+        try:
+            logger.info(f"Enriching property {property.id}: {property.property_address}")
+            
+            # Prepare property data for enrichment
+            property_data = {
+                'id': property.id,
+                'parcel_number': property.parcel_number,
+                'property_address': property.property_address,
+                'city': property.city,
+                'state': property.state,
+                'zip_code': property.zip_code,
+                'owner_name': property.owner_name,
+                'property_type': property.property_type,
+                'assessed_value': float(property.assessed_value) if property.assessed_value else None,
+                'market_value': float(property.market_value) if property.market_value else None,
+                'lot_size': float(property.lot_size) if property.lot_size else None,
+                'square_footage': property.square_footage,
+                'year_built': property.year_built,
+                'latitude': float(property.latitude) if property.latitude else None,
+                'longitude': float(property.longitude) if property.longitude else None,
+            }
+            
+            # Get enrichment data
+            enriched_data = self.enrichment_service.enrich_property(property_data)
+            
+            # Create or update PropertyEnrichment record
+            enrichment = self.db.query(PropertyEnrichment).filter(
+                PropertyEnrichment.property_id == property.id
+            ).first()
+            
+            if not enrichment:
+                enrichment = PropertyEnrichment(property_id=property.id)
+                self.db.add(enrichment)
+            
+            # Update enrichment fields from Zillow data
+            zillow_data = enriched_data.get('zillow_data', {})
+            if zillow_data:
+                enrichment.zestimate = zillow_data.get('zestimate')
+                enrichment.zillow_estimated_value = zillow_data.get('estimated_value')
+                enrichment.zillow_rent_estimate = zillow_data.get('rent_estimate')
+                enrichment.monthly_rent_estimate = zillow_data.get('rent_estimate')
+                enrichment.zillow_last_sold_date = datetime.fromisoformat(zillow_data['last_sold_date']) if zillow_data.get('last_sold_date') else None
+                enrichment.zillow_last_sold_price = zillow_data.get('last_sold_price')
+                enrichment.zillow_price_history = zillow_data.get('price_history', [])
+                enrichment.zillow_tax_history = zillow_data.get('tax_history', [])
+                enrichment.zillow_url = zillow_data.get('zillow_url')
+                
+                # Update property details if not already set
+                if zillow_data.get('bedrooms') and not property.bedrooms:
+                    property.bedrooms = zillow_data.get('bedrooms')
+                if zillow_data.get('bathrooms') and not property.bathrooms:
+                    property.bathrooms = zillow_data.get('bathrooms')
+                if zillow_data.get('square_footage') and not property.square_footage:
+                    property.square_footage = zillow_data.get('square_footage')
+                if zillow_data.get('year_built') and not property.year_built:
+                    property.year_built = zillow_data.get('year_built')
+                if zillow_data.get('lot_size') and not property.lot_size:
+                    property.lot_size = zillow_data.get('lot_size')
+            
+            # Update coordinates if found
+            if enriched_data.get('latitude') and enriched_data.get('longitude'):
+                property.latitude = enriched_data['latitude']
+                property.longitude = enriched_data['longitude']
+            
+            # Update neighborhood data
+            neighborhood_data = enriched_data.get('neighborhood_data', {})
+            if zillow_data.get('nearby_schools'):
+                neighborhood_data['schools'] = zillow_data['nearby_schools']
+            if zillow_data.get('neighborhood_info'):
+                neighborhood_data.update(zillow_data['neighborhood_info'])
+            
+            enrichment.neighborhood_data = neighborhood_data
+            
+            # Calculate investment metrics
+            investment_metrics = enriched_data.get('investment_metrics', {})
+            if investment_metrics:
+                enrichment.roi_percentage = investment_metrics.get('roi_percentage')
+                enrichment.cap_rate = investment_metrics.get('cap_rate')
+                enrichment.cash_on_cash_return = investment_metrics.get('cash_on_cash_return')
+                enrichment.gross_rent_multiplier = investment_metrics.get('gross_rent_multiplier')
+                enrichment.investment_score = investment_metrics.get('investment_score')
+            
+            # Set data quality and metadata
+            enrichment.data_quality_score = enriched_data.get('enrichment', {}).get('quality_score', 50)
+            enrichment.data_sources = enriched_data.get('enrichment', {}).get('sources', ['Zillow Public Data'])
+            enrichment.last_enriched_at = datetime.now()
+            
+            # Commit enrichment
+            self.db.flush()
+            logger.info(f"Successfully enriched property {property.id} with Zestimate: ${enrichment.zestimate}")
+            
+        except Exception as e:
+            logger.error(f"Error enriching property {property.id}: {str(e)}")
+            # Don't fail the whole import if enrichment fails
     
     def _create_scraping_alert(self, user: User, errors: List[str]):
         """Create alert for scraping errors"""
