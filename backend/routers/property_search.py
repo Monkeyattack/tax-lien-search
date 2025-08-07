@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_, func
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime, date
 from decimal import Decimal
+import logging
 
 from database import get_database
 from models import Property, County, TaxSale, PropertyEnrichment, User
 from routers.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/property-search", tags=["property-search"])
 
@@ -299,6 +302,46 @@ def search_properties(
     
     return results
 
+
+@router.get("/simple", response_model=List[dict])
+def get_simple_properties(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_database),
+    current_user: User = Depends(get_current_user)
+):
+    """Get properties with basic info - simplified version"""
+    try:
+        properties = db.query(Property).join(County).offset(skip).limit(limit).all()
+        
+        result = []
+        for prop in properties:
+            # Get next tax sale if exists
+            next_sale = db.query(TaxSale).filter(
+                TaxSale.property_id == prop.id,
+                TaxSale.sale_date >= datetime.now().date(),
+                TaxSale.sale_status == 'scheduled'
+            ).order_by(TaxSale.sale_date).first()
+            
+            result.append({
+                'id': prop.id,
+                'parcel_number': prop.parcel_number,
+                'owner_name': prop.owner_name,
+                'property_address': prop.property_address,
+                'city': prop.city,
+                'state': prop.state,
+                'county_name': prop.county.name if prop.county else None,
+                'property_type': prop.property_type,
+                'assessed_value': prop.assessed_value,
+                'next_sale_date': next_sale.sale_date if next_sale else None,
+                'minimum_bid': next_sale.minimum_bid if next_sale else None,
+                'taxes_owed': next_sale.taxes_owed if next_sale else None,
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error in simple properties query: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/filters")
 def get_filter_options(

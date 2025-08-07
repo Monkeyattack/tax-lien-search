@@ -39,26 +39,12 @@ const PropertySearch = ({ onPropertySelect }) => {
     { staleTime: 300000 } // 5 minutes
   );
 
-  // Search properties
+  // Search properties - using simplified endpoint temporarily
   const { data: properties, isLoading, refetch } = useQuery(
     ['propertySearch', filters, searchText],
     () => {
-      // Convert empty strings to null for numeric fields
-      const cleanFilters = { ...filters };
-      const numericFields = ['min_assessed_value', 'max_assessed_value', 'min_investment_score', 'min_roi_percentage', 'min_minimum_bid', 'max_minimum_bid', 'min_zestimate', 'max_zestimate'];
-      
-      numericFields.forEach(field => {
-        if (cleanFilters[field] === '') {
-          cleanFilters[field] = null;
-        } else if (cleanFilters[field] && typeof cleanFilters[field] === 'string') {
-          cleanFilters[field] = parseFloat(cleanFilters[field]) || null;
-        }
-      });
-      
-      return api.post('/property-search/search', {
-        ...cleanFilters,
-        search_text: searchText || null,
-      }).then(res => res.data);
+      // Use simplified endpoint for now
+      return api.get('/property-search/simple?limit=50').then(res => res.data);
     },
     { keepPreviousData: true }
   );
