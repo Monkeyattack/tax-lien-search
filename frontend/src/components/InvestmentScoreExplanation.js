@@ -9,7 +9,7 @@ import {
   AcademicCapIcon,
   ShieldCheckIcon,
   ClockIcon,
-  TrendingUpIcon,
+  ArrowTrendingUpIcon,
   CalculatorIcon,
   ArrowLeftIcon,
 } from '@heroicons/react/24/outline';
@@ -67,7 +67,7 @@ const InvestmentScoreExplanation = () => {
       ]
     },
     {
-      icon: <TrendingUpIcon className="h-6 w-6" />,
+      icon: <ArrowTrendingUpIcon className="h-6 w-6" />,
       title: "Market Trends",
       weight: "10%",
       description: "Area appreciation rates and market demand",
