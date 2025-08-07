@@ -6,6 +6,10 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
 from services.property_enrichment_service import PropertyEnrichmentService
 import logging
 
