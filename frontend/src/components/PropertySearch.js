@@ -255,15 +255,6 @@ const PropertySearch = ({ onPropertySelect }) => {
         </div>
       )}
 
-      {/* Debug Info */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-        <h4 className="font-semibold text-yellow-800">Debug Info:</h4>
-        <p className="text-sm">Loading: {isLoading ? 'Yes' : 'No'}</p>
-        <p className="text-sm">Properties: {properties ? properties.length : 'null'} found</p>
-        {properties && properties.length > 0 && (
-          <p className="text-sm">First property: {JSON.stringify(properties[0], null, 2).slice(0, 200)}...</p>
-        )}
-      </div>
 
       {/* Results */}
       <div className="space-y-4">
@@ -289,7 +280,7 @@ const PropertySearch = ({ onPropertySelect }) => {
                           {property.property_address}
                         </h3>
                         <p className="text-sm text-gray-600">
-                          {property.city}, {property.state} {property.zip_code}
+                          {property.city ? `${property.city}, ` : ''}{property.state}{property.zip_code ? ` ${property.zip_code}` : ''}
                         </p>
                       </div>
                       {property.investment_score && (
