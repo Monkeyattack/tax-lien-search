@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from 'react-query';
 import api from '../services/authService';
 import SaveSearchModal from './SaveSearchModal';
+import PropertyCard from './PropertyCard';
+import PropertyComparison from './PropertyComparison';
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
@@ -12,6 +14,9 @@ import {
   MapPinIcon,
   ChevronDownIcon,
   BookmarkIcon,
+  ScaleIcon,
+  ViewColumnsIcon,
+  Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
@@ -19,6 +24,9 @@ const PropertySearch = ({ onPropertySelect }) => {
   const [searchText, setSearchText] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [selectedForComparison, setSelectedForComparison] = useState([]);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
   const [filters, setFilters] = useState({
     county_ids: [],
     cities: [],
@@ -53,6 +61,27 @@ const PropertySearch = ({ onPropertySelect }) => {
     setFilters(prev => ({ ...prev, [field]: value }));
   };
 
+  const handlePropertySelect = (property) => {
+    if (onPropertySelect) {
+      onPropertySelect(property);
+    }
+  };
+
+  const toggleComparisonSelect = (property) => {
+    setSelectedForComparison(prev => {
+      const exists = prev.find(p => p.id === property.id);
+      if (exists) {
+        return prev.filter(p => p.id !== property.id);
+      } else {
+        return [...prev, property].slice(0, 4); // Max 4 properties
+      }
+    });
+  };
+
+  const removeFromComparison = (propertyId) => {
+    setSelectedForComparison(prev => prev.filter(p => p.id !== propertyId));
+  };
+
   const formatCurrency = (value) => {
     if (!value) return 'N/A';
     return new Intl.NumberFormat('en-US', {
@@ -73,7 +102,7 @@ const PropertySearch = ({ onPropertySelect }) => {
   return (
     <div className="space-y-4">
       {/* Search Bar */}
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex-1 relative">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
@@ -84,22 +113,84 @@ const PropertySearch = ({ onPropertySelect }) => {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tax-primary focus:border-transparent"
           />
         </div>
-        <button
-          onClick={() => setShowFilters(!showFilters)}
-          className={`btn-secondary inline-flex items-center ${showFilters ? 'bg-tax-primary text-white' : ''}`}
-        >
-          <AdjustmentsHorizontalIcon className="h-5 w-5 mr-2" />
-          Filters
-        </button>
-        <button
-          onClick={() => setShowSaveModal(true)}
-          className="btn-secondary inline-flex items-center"
-          title="Save this search"
-        >
-          <BookmarkIcon className="h-5 w-5 mr-2" />
-          Save
-        </button>
+        
+        <div className="flex gap-2">
+          {/* View Mode Toggle */}
+          <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-3 py-2 text-sm font-medium transition-colors ${
+                viewMode === 'grid' 
+                  ? 'bg-tax-primary text-white' 
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+              title="Grid view"
+            >
+              <Squares2X2Icon className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-2 text-sm font-medium transition-colors border-l border-gray-300 ${
+                viewMode === 'list' 
+                  ? 'bg-tax-primary text-white' 
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+              title="List view"
+            >
+              <ViewColumnsIcon className="h-4 w-4" />
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`btn-secondary inline-flex items-center ${showFilters ? 'bg-tax-primary text-white' : ''}`}
+          >
+            <AdjustmentsHorizontalIcon className="h-5 w-5 mr-2" />
+            Filters
+          </button>
+          
+          <button
+            onClick={() => setShowSaveModal(true)}
+            className="btn-secondary inline-flex items-center"
+            title="Save this search"
+          >
+            <BookmarkIcon className="h-5 w-5 mr-2" />
+            Save
+          </button>
+        </div>
       </div>
+
+      {/* Comparison Bar */}
+      {selectedForComparison.length > 0 && (
+        <div className="bg-tax-primary text-white rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <ScaleIcon className="h-5 w-5 mr-3" />
+              <span className="font-medium">
+                {selectedForComparison.length} properties selected for comparison
+              </span>
+              <span className="ml-2 text-sm opacity-90">
+                (Max: 4 properties)
+              </span>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowComparison(true)}
+                disabled={selectedForComparison.length < 2}
+                className="px-4 py-2 bg-white text-tax-primary rounded-md font-medium hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Compare Properties
+              </button>
+              <button
+                onClick={() => setSelectedForComparison([])}
+                className="px-3 py-2 text-white hover:bg-white hover:bg-opacity-20 rounded-md transition-colors"
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters Panel */}
       {showFilters && filterOptions && (
@@ -257,155 +348,69 @@ const PropertySearch = ({ onPropertySelect }) => {
 
 
       {/* Results */}
-      <div className="space-y-4">
+      <div>
         {isLoading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tax-primary mx-auto"></div>
             <p className="mt-4 text-gray-600">Searching properties...</p>
           </div>
         ) : properties && properties.length > 0 ? (
-          properties.map((property) => (
-            <div
-              key={property.id}
-              className="card hover:shadow-lg transition-shadow cursor-pointer"
-              onClick={() => onPropertySelect && onPropertySelect(property)}
-            >
-              <div className="card-body">
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
-                  {/* Property Info */}
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          {property.property_address}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          {property.city ? `${property.city}, ` : ''}{property.state}{property.zip_code ? ` ${property.zip_code}` : ''}
-                        </p>
-                      </div>
-                      {property.investment_score && (
-                        <div className={`text-2xl font-bold ${getScoreColor(property.investment_score)}`}>
-                          {Math.round(property.investment_score)}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                      {/* Property Details */}
-                      <div>
-                        <p className="text-xs text-gray-500">Property Type</p>
-                        <p className="font-medium">{property.property_type || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Owner</p>
-                        <p className="font-medium truncate">{property.owner_name}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Parcel #</p>
-                        <p className="font-medium">{property.parcel_number}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">County</p>
-                        <p className="font-medium">{property.county_name}</p>
-                      </div>
-
-                      {/* Property Specs */}
-                      {property.bedrooms && (
-                        <div>
-                          <p className="text-xs text-gray-500">Beds/Baths</p>
-                          <p className="font-medium">
-                            {property.bedrooms} / {property.bathrooms || '?'}
-                          </p>
-                        </div>
-                      )}
-                      {property.square_footage && (
-                        <div>
-                          <p className="text-xs text-gray-500">Sq Ft</p>
-                          <p className="font-medium">{property.square_footage.toLocaleString()}</p>
-                        </div>
-                      )}
-                      {property.year_built && (
-                        <div>
-                          <p className="text-xs text-gray-500">Year Built</p>
-                          <p className="font-medium">{property.year_built}</p>
-                        </div>
-                      )}
-                      {property.lot_size_sqft && (
-                        <div>
-                          <p className="text-xs text-gray-500">Lot Size</p>
-                          <p className="font-medium">{property.lot_size_sqft.toLocaleString()} sqft</p>
-                        </div>
-                      )}
-
-                      {/* Values */}
-                      <div>
-                        <p className="text-xs text-gray-500">Assessed Value</p>
-                        <p className="font-medium">{formatCurrency(property.assessed_value)}</p>
-                      </div>
-                      {property.zestimate && (
-                        <div>
-                          <p className="text-xs text-gray-500">Zestimate®</p>
-                          <p className="font-medium">{formatCurrency(property.zestimate)}</p>
-                        </div>
-                      )}
-                      {property.monthly_rent_estimate && (
-                        <div>
-                          <p className="text-xs text-gray-500">Est. Rent</p>
-                          <p className="font-medium">{formatCurrency(property.monthly_rent_estimate)}/mo</p>
-                        </div>
-                      )}
-                      {property.roi_percentage && (
-                        <div>
-                          <p className="text-xs text-gray-500">Est. ROI</p>
-                          <p className="font-medium text-green-600">{property.roi_percentage.toFixed(1)}%</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Tax Sale Info */}
-                    {property.next_sale_date && (
-                      <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <CalendarIcon className="h-5 w-5 text-yellow-600 mr-2" />
-                            <div>
-                              <p className="text-sm font-medium text-yellow-800">
-                                Tax Sale: {new Date(property.next_sale_date).toLocaleDateString()}
-                              </p>
-                              <p className="text-xs text-yellow-600">
-                                Minimum Bid: {formatCurrency(property.minimum_bid)} | 
-                                Taxes Owed: {formatCurrency(property.taxes_owed)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Neighborhood Info */}
-                    <div className="mt-3 flex gap-4 text-sm text-gray-600">
-                      {property.school_rating && (
-                        <div className="flex items-center">
-                          <StarIcon className="h-4 w-4 mr-1" />
-                          School Rating: {property.school_rating.toFixed(1)}/10
-                        </div>
-                      )}
-                      {property.walk_score && (
-                        <div className="flex items-center">
-                          <MapPinIcon className="h-4 w-4 mr-1" />
-                          Walk Score: {property.walk_score}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
+          <>
+            {/* Results Header */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600">
+                  {properties.length} properties found
+                </p>
+                {selectedForComparison.length > 0 && (
+                  <p className="text-sm text-tax-primary font-medium">
+                    {selectedForComparison.length} selected for comparison
+                  </p>
+                )}
               </div>
             </div>
-          ))
+
+            {/* Grid/List View */}
+            <div className={viewMode === 'grid' 
+              ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" 
+              : "space-y-4"
+            }>
+              {properties.map((property) => {
+                const isSelected = selectedForComparison.find(p => p.id === property.id);
+                
+                return (
+                  <div key={property.id} className="relative">
+                    {/* Selection Checkbox for Comparison */}
+                    <div className="absolute top-4 left-4 z-10">
+                      <input
+                        type="checkbox"
+                        checked={!!isSelected}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleComparisonSelect(property);
+                        }}
+                        className="h-5 w-5 text-tax-primary focus:ring-tax-primary border-gray-300 rounded shadow-sm bg-white"
+                        title="Select for comparison"
+                      />
+                    </div>
+
+                    <PropertyCard
+                      property={property}
+                      onSelect={handlePropertySelect}
+                      className={`${isSelected ? 'ring-2 ring-tax-primary' : ''} ${
+                        viewMode === 'list' ? 'max-w-none' : ''
+                      }`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
-          <div className="text-center py-8 text-gray-500">
-            <HomeIcon className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-            <p>No properties found matching your criteria</p>
+          <div className="text-center py-12 text-gray-500">
+            <HomeIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No properties found</h3>
+            <p className="text-sm">Try adjusting your search criteria or filters</p>
           </div>
         )}
       </div>
@@ -424,6 +429,15 @@ const PropertySearch = ({ onPropertySelect }) => {
           min_roi_percentage: filters.min_roi_percentage || null,
         }}
       />
+
+      {/* Property Comparison Modal */}
+      {showComparison && (
+        <PropertyComparison
+          properties={selectedForComparison}
+          onRemoveProperty={removeFromComparison}
+          onClose={() => setShowComparison(false)}
+        />
+      )}
     </div>
   );
 };
