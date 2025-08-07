@@ -167,7 +167,7 @@ class ScraperService:
                         
             except Exception as e:
                 logger.error(f"Error processing property {prop_data.get('parcel_number')}: {str(e)}")
-                raise
+                # Don't raise, continue with other properties
                 
         self.db.commit()
         return properties_imported
@@ -176,12 +176,13 @@ class ScraperService:
         """Get or create property record"""
         parcel_number = prop_data.get('parcel_number', '')
         
+        # First check if property exists with this parcel number (unique constraint)
         property = self.db.query(Property).filter(
-            Property.parcel_number == parcel_number,
-            Property.county_id == county.id
+            Property.parcel_number == parcel_number
         ).first()
         
         if not property:
+            # Create new property
             property = Property(
                 parcel_number=parcel_number,
                 owner_name=prop_data.get('owner_name', 'Unknown'),
@@ -198,6 +199,17 @@ class ScraperService:
             )
             self.db.add(property)
             self.db.flush()  # Get ID without committing
+        else:
+            # Update existing property with new information if needed
+            if prop_data.get('property_address') and not property.property_address:
+                property.property_address = prop_data.get('property_address', '')
+            if prop_data.get('owner_name') and property.owner_name == 'Unknown':
+                property.owner_name = prop_data.get('owner_name', 'Unknown')
+            if prop_data.get('legal_description') and not property.legal_description:
+                property.legal_description = prop_data.get('legal_description', '')
+            # Update county_id if different
+            if property.county_id != county.id:
+                property.county_id = county.id
             
         return property
     
@@ -264,12 +276,21 @@ class ScraperService:
         
         # Set up progress callback
         def update_progress(progress: int, message: str, properties_found: int = 0, sales_found: int = 0):
-            job.progress = progress
-            job.details = {'message': message}
-            job.properties_found = properties_found
-            job.sales_found = sales_found
-            job.status = 'running' if progress < 100 else 'completed'
-            self.db.commit()
+            try:
+                # Rollback any pending changes before updating
+                self.db.rollback()
+                
+                # Re-fetch the job to ensure we have the latest version
+                current_job = self.db.query(ScrapingJob).filter(ScrapingJob.job_id == job_id).first()
+                if current_job:
+                    current_job.progress = progress
+                    current_job.details = {'message': message}
+                    current_job.properties_found = properties_found
+                    current_job.sales_found = sales_found
+                    current_job.status = 'running' if progress < 100 else 'completed'
+                    self.db.commit()
+            except Exception as e:
+                logger.error(f"Error updating progress for job {job_id}: {str(e)}")
         
         # Get scraper and set progress callback
         if county_code not in self.scrapers:
@@ -306,10 +327,17 @@ class ScraperService:
                 self._enrich_recent_properties(county_code)
             
         except Exception as e:
-            job.status = 'failed'
-            job.errors = str(e)
-            job.completed_at = datetime.utcnow()
-            self.db.commit()
+            # Rollback any pending changes
+            self.db.rollback()
+            
+            # Re-fetch the job to update it
+            job = self.db.query(ScrapingJob).filter(ScrapingJob.job_id == job_id).first()
+            if job:
+                job.status = 'failed'
+                job.errors = str(e)
+                job.completed_at = datetime.utcnow()
+                self.db.commit()
+            
             logger.error(f"Scraping job {job_id} failed: {str(e)}")
         
         return job_id
