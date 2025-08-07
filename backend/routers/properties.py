@@ -332,8 +332,8 @@ def get_property_enriched(
         
         "county": {
             "id": property_obj.county.id,
-            "name": property_obj.county.county_name,
-            "state": property_obj.county.county_state
+            "name": property_obj.county.name,
+            "state": property_obj.county.state
         } if property_obj.county else None,
         
         "next_tax_sale": {
