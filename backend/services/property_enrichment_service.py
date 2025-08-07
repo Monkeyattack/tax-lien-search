@@ -166,6 +166,10 @@ class PropertyEnrichmentService:
                     }
                     self._cache[cache_key] = result
                     return result
+                else:
+                    logger.warning(f"Geocoding API returned status: {data.get('status', 'UNKNOWN')}, error: {data.get('error_message', 'No error message')}")
+            else:
+                logger.error(f"Geocoding API request failed with status {response.status_code}")
             
         except Exception as e:
             logger.error(f"Geocoding error: {str(e)}")
