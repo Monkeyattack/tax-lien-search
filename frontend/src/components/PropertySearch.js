@@ -41,10 +41,10 @@ const PropertySearch = ({ onPropertySelect }) => {
 
   // Search properties - using simplified endpoint temporarily
   const { data: properties, isLoading, refetch } = useQuery(
-    ['propertySearch', filters, searchText],
+    ['propertySearch', filters, searchText, 'v2'], // Added v2 to force cache refresh
     () => {
       // Use simplified endpoint for now
-      return api.get('/property-search/simple?limit=50').then(res => res.data);
+      return api.get(`/property-search/simple?limit=50&v=${Date.now()}`).then(res => res.data);
     },
     { keepPreviousData: true }
   );
@@ -254,6 +254,16 @@ const PropertySearch = ({ onPropertySelect }) => {
           </div>
         </div>
       )}
+
+      {/* Debug Info */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+        <h4 className="font-semibold text-yellow-800">Debug Info:</h4>
+        <p className="text-sm">Loading: {isLoading ? 'Yes' : 'No'}</p>
+        <p className="text-sm">Properties: {properties ? properties.length : 'null'} found</p>
+        {properties && properties.length > 0 && (
+          <p className="text-sm">First property: {JSON.stringify(properties[0], null, 2).slice(0, 200)}...</p>
+        )}
+      </div>
 
       {/* Results */}
       <div className="space-y-4">
